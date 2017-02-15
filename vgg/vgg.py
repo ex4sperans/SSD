@@ -45,11 +45,9 @@ class VGG_16:
             net = slim.conv2d(net, 512, [3, 3], scope='conv4_3')
             net = slim.max_pool2d(net, [2, 2], scope='pool4')
 
-
             net = slim.conv2d(net, 512, [3, 3], scope='conv5_1')
             net = slim.conv2d(net, 512, [3, 3], scope='conv5_2')
             net = slim.conv2d(net, 512, [3, 3], scope='conv5_3')
-            net = slim.max_pool2d(net, [2, 2], scope='pool5')
 
         return net
 
@@ -58,8 +56,9 @@ class VGG_16:
             with tf.variable_scope('convo_layers'):
                 self.convo_output = self._convo_layers(self.inputs)
 
-    def load_convo_weights(self, model_path='vgg16_weights.npz'):
+    def load_convo_weights(self, model_path='vgg16_weights.npz', sess=None):
 
+        sess = sess or self.sess
         saved_weights = np.load(model_path)
         #sort saved weights and tf variables to make them match each other
         keys = sorted(saved_weights.keys(), key=str.lower)
@@ -88,4 +87,3 @@ class VGG_16:
             vars_ = tf.global_variables()
 
         return list(v for v in vars_ if v.name.startswith(scope))
-
