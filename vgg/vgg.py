@@ -8,10 +8,11 @@ from tensorflow.contrib import slim
 
 class VGG_16:
 
-    def __init__(self, input_shape, class_names, scope='VGG_16'):
+    def __init__(self, input_shape, class_names, scope, convo_architecture):
 
         self.input_shape = input_shape
         self.class_names = class_names
+        self.convo_architecture = convo_architecture
         self.scope = scope
 
         self._create_placeholders()
@@ -23,33 +24,31 @@ class VGG_16:
         self.labels = tf.placeholder(tf.float32, shape=[None, len(self.class_names)])
 
     def _convo_layers(self, inputs):
+        
         with slim.arg_scope([slim.conv2d],
                   activation_fn=tf.nn.relu,
                   weights_regularizer=slim.l2_regularizer(0.0005)):
 
-            net = slim.conv2d(inputs, 64, [3, 3], scope='conv1_1')
-            net = slim.conv2d(net, 64, [3, 3], scope='conv1_2')
-            net = slim.max_pool2d(net, [2, 2], scope='pool1')
+            print('\nCreating layers for {scope}:'.format(scope=self.scope))
 
-            net = slim.conv2d(net, 128, [3, 3], scope='conv2_1')
-            net = slim.conv2d(net, 128, [3, 3], scope='conv2_2')
-            net = slim.max_pool2d(net, [2, 2], scope='pool2')
+            layer = inputs
+            for layer_params in self.convo_architecture:
+                (name, params), = layer_params.items()
+                if name.startswith('conv'):
+                    layer = slim.conv2d(
+                                        layer,
+                                        params['depth'],
+                                        params['kernel_size'],
+                                        scope=name) 
+                elif name.startswith('pool'):
+                    layer = slim.max_pool2d(
+                                            layer,
+                                            params['kernel_size'],
+                                            scope=name) 
+                setattr(self, name, layer)
+                print('{name} with {shape}'.format(name=name, shape=layer.get_shape()))
 
-            net = slim.conv2d(net, 256, [3, 3], scope='conv3_1')
-            net = slim.conv2d(net, 256, [3, 3], scope='conv3_2')
-            net = slim.conv2d(net, 256, [3, 3], scope='conv3_3')
-            net = slim.max_pool2d(net, [2, 2], scope='pool3')
-
-            net = slim.conv2d(net, 512, [3, 3], scope='conv4_1')
-            net = slim.conv2d(net, 512, [3, 3], scope='conv4_2')
-            net = slim.conv2d(net, 512, [3, 3], scope='conv4_3')
-            net = slim.max_pool2d(net, [2, 2], scope='pool4')
-
-            net = slim.conv2d(net, 512, [3, 3], scope='conv5_1')
-            net = slim.conv2d(net, 512, [3, 3], scope='conv5_2')
-            net = slim.conv2d(net, 512, [3, 3], scope='conv5_3')
-
-        return net
+        return layer
 
     def _create_graph(self):
         with tf.variable_scope(self.scope):

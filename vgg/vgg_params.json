@@ -1,0 +1,106 @@
+{
+    "convo_architecture":
+    [
+        {"conv1_1": 
+            {
+                "depth": 64,
+                "kernel_size": [3, 3]
+            }
+        },
+        {"conv1_2": 
+            {
+                "depth": 64,
+                "kernel_size": [3, 3]
+            }
+        },
+        {"pool_1": 
+            {
+                "kernel_size": [2, 2]
+            }
+        },
+        {"conv2_1": 
+            {
+                "depth": 128,
+                "kernel_size": [3, 3]
+            }
+        },
+        {"conv2_2": 
+            {
+                "depth": 128,
+                "kernel_size": [3, 3]
+            }
+        },
+        {"pool_2": 
+            {
+                "kernel_size": [2, 2]
+            }
+        },
+        {"conv3_1": 
+            {
+                "depth": 256,
+                "kernel_size": [3, 3]
+            }
+        },
+        {"conv3_2": 
+            {
+                "depth": 256,
+                "kernel_size": [3, 3]
+            }
+        },
+        {"conv3_3": 
+            {
+                "depth": 256,
+                "kernel_size": [3, 3]
+            }
+        },
+        {"pool_3": 
+            {
+                "kernel_size": [2, 2]
+            }
+        },
+        {"conv4_1": 
+            {
+                "depth": 512,
+                "kernel_size": [3, 3]
+            }
+        },
+        {"conv4_2": 
+            {
+                "depth": 512,
+                "kernel_size": [3, 3]
+            }
+        },
+        {"conv4_3": 
+            {
+                "depth": 512,
+                "kernel_size": [3, 3]
+            }
+        },
+        {"pool_4": 
+            {
+                "kernel_size": [2, 2]
+            }
+        },
+        {"conv5_1": 
+            {
+                "depth": 512,
+                "kernel_size": [3, 3]
+            }
+        },
+        {"conv5_2": 
+            {
+                "depth": 512,
+                "kernel_size": [3, 3]
+            }
+        },
+        {"conv5_3": 
+            {
+                "depth": 512,
+                "kernel_size": [3, 3]
+            }
+        }
+    ],
+    "input_shape": [300, 300, 3],
+    "class_names": ["vodochka", "koniachok"],
+    "scope": "VGG_16"
+}
