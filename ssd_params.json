@@ -1,0 +1,164 @@
+{
+    "first_layer": "vgg_16.conv5_3",
+    "feedforward_convo_architecture":
+    [
+        {"conv1_1": 
+            {
+                "depth": 1024,
+                "kernel_size": [3, 3],
+                "stride": 1
+            }
+        },
+        {"conv2_1": 
+            {
+                "depth": 1024,
+                "kernel_size": [1, 1],
+                "stride": 1
+            }
+        },
+        {"conv3_1": 
+            {
+                "depth": 256,
+                "kernel_size": [1, 1],
+                "stride": 1
+            }
+        },
+        {"conv3_2": 
+            {
+                "depth": 512,
+                "kernel_size": [3, 3],
+                "stride": 2
+            }
+        },
+        {"conv4_1": 
+            {
+                "depth": 128,
+                "kernel_size": [3, 3],
+                "stride": 1
+            }
+        },
+        {"conv4_2": 
+            {
+                "depth": 256,
+                "kernel_size": [3, 3],
+                "stride": 2
+            }
+        },
+        {"conv5_1": 
+            {
+                "depth": 128,
+                "kernel_size": [1, 1],
+                "stride": 1
+            }
+        },
+        {"conv5_2": 
+            {
+                "depth": 256,
+                "kernel_size": [3, 3],
+                "stride": 2
+            }
+        },
+        {"conv6_1": 
+            {
+                "depth": 128,
+                "kernel_size": [1, 1],
+                "stride": 1
+            }
+        },
+        {"conv6_2": 
+            {
+                "depth": 256,
+                "kernel_size": [3, 3],
+                "stride": 1
+            }
+        },
+        {"avg_pool7_1": 
+            {
+                "kernel_size": [3, 3],
+                "stride": 1,
+                "padding": "VALID"
+            }
+        }
+    ],
+    "out_convo_architecture":
+    [
+        {"conv_out1_1": 
+            {
+                "parent": "vgg_16.conv4_3",
+                "depth": 1024,
+                "kernel_size": [3, 3],
+                "stride": 1,
+                "layer_boxes": 3
+            }
+        },
+        {"conv_out2_1": 
+            {
+                "parent": "conv2_1",
+                "depth": 1024,
+                "kernel_size": [3, 3],
+                "stride": 1,
+                "layer_boxes": 3
+            }
+        },
+        {"conv_out3_1": 
+            {
+                "parent": "conv3_2",
+                "depth": 256,
+                "kernel_size": [3, 3],
+                "stride": 1,
+                "layer_boxes": 3
+            }
+        },
+        {"conv_out4_1": 
+            {
+                "parent": "conv4_2",
+                "depth": 512,
+                "kernel_size": [3, 3],
+                "stride": 1,
+                "layer_boxes": 3
+            }
+        },
+        {"conv_out5_1": 
+            {
+                "parent": "conv6_2",
+                "depth": 128,
+                "kernel_size": [3, 3],
+                "stride": 1,
+                "layer_boxes": 3
+            }
+        },
+        {"conv_out_6_1": 
+            {
+                "parent": "avg_pool7_1",
+                "depth": 256,
+                "kernel_size": [1, 1],
+                "stride": 1,
+                "layer_boxes": 3
+            }
+        }
+    ],
+    "input_shape": [300, 300, 3],
+    "class_names": [
+        "pottedplant",
+        "boat",
+        "aeroplane",
+        "motorbike",
+        "cow",
+        "sheep",
+        "bus",
+        "bicycle",
+        "person",
+        "car",
+        "diningtable",
+        "cat",
+        "tvmonitor",
+        "sofa",
+        "bird",
+        "train",
+        "bottle",
+        "dog",
+        "chair",
+        "horse"
+    ],
+    "scope": "SSD"
+}

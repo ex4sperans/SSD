@@ -8,12 +8,12 @@ from tensorflow.contrib import slim
 
 class VGG_16:
 
-    def __init__(self, model_params_path='vgg/vgg_params.json'):
+    def __init__(self, input_shape, class_names, model_params_path='vgg/vgg_params.json'):
 
         model_params = self._load_params_json(model_params_path)
 
-        self.input_shape = model_params['input_shape']
-        self.class_names = model_params['class_names']
+        self.input_shape = input_shape
+        self.class_names = class_names
         self.convo_architecture = model_params['convo_architecture']
         self.scope = model_params['scope']
 
@@ -54,8 +54,6 @@ class VGG_16:
                                             scope=name) 
                 setattr(self, name, layer)
                 print('{name} with shape {shape}'.format(name=name, shape=layer.get_shape()))
-
-        return layer
 
     def _create_graph(self):
         with tf.variable_scope(self.scope):
