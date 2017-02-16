@@ -98,6 +98,11 @@
                 "depth": 512,
                 "kernel_size": [3, 3]
             }
+        },
+        {"pool_5": 
+            {
+                "kernel_size": [2, 2]
+            }
         }
     ],
     "input_shape": [300, 300, 3],

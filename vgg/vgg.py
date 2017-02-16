@@ -1,30 +1,36 @@
 import os
 from operator import attrgetter
+import json
 
 import numpy as np
 import tensorflow as tf
 from tensorflow.contrib import slim
 
-
 class VGG_16:
 
-    def __init__(self, input_shape, class_names, scope, convo_architecture):
+    def __init__(self, model_params_path='vgg/vgg_params.json'):
 
-        self.input_shape = input_shape
-        self.class_names = class_names
-        self.convo_architecture = convo_architecture
-        self.scope = scope
+        model_params = self._load_params_json(model_params_path)
+
+        self.input_shape = model_params['input_shape']
+        self.class_names = model_params['class_names']
+        self.convo_architecture = model_params['convo_architecture']
+        self.scope = model_params['scope']
 
         self._create_placeholders()
         self._create_graph()
+        self.model_vars = self._get_vars_by_scope(self.scope)
+
+        print('\nNumber of parameters for {scope}: {n:.1f}M'.format(
+            scope=self.scope, n=self._number_of_parameters(self.model_vars)/1e6))
 
     def _create_placeholders(self):
 
         self.inputs = tf.placeholder(tf.float32, shape=[None] + self.input_shape)
         self.labels = tf.placeholder(tf.float32, shape=[None, len(self.class_names)])
 
-    def _convo_layers(self, inputs):
-        
+    def _create_convo_layers(self, inputs):
+
         with slim.arg_scope([slim.conv2d],
                   activation_fn=tf.nn.relu,
                   weights_regularizer=slim.l2_regularizer(0.0005)):
@@ -44,18 +50,19 @@ class VGG_16:
                     layer = slim.max_pool2d(
                                             layer,
                                             params['kernel_size'],
+                                            padding='SAME',
                                             scope=name) 
                 setattr(self, name, layer)
-                print('{name} with {shape}'.format(name=name, shape=layer.get_shape()))
+                print('{name} with shape {shape}'.format(name=name, shape=layer.get_shape()))
 
         return layer
 
     def _create_graph(self):
         with tf.variable_scope(self.scope):
             with tf.variable_scope('convo_layers'):
-                self.convo_output = self._convo_layers(self.inputs)
+                self.convo_output = self._create_convo_layers(self.inputs)
 
-    def load_convo_weights(self, model_path='vgg16_weights.npz', sess=None):
+    def load_convo_weights(self, model_path='vgg/vgg16_weights.npz', sess=None):
 
         sess = sess or self.sess
         saved_weights = np.load(model_path)
@@ -86,3 +93,11 @@ class VGG_16:
             vars_ = tf.global_variables()
 
         return list(v for v in vars_ if v.name.startswith(scope))
+
+    def _number_of_parameters(self, vars_):
+        return sum(np.prod(v.get_shape().as_list()) for v in vars_)
+
+    def _load_params_json(self, json_path):
+        with open(json_path, 'r') as f:
+            params = json.load(f)
+        return params
