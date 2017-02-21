@@ -74,7 +74,7 @@ class SSD:
                 #layer boxes is the number of boxes per pixel of CNN feature map
                 #usually is set to 2, 3 or 6
                 depth = params['layer_boxes']*(self.n_classes + 1 + 4)
-                
+
                 layer = slim.conv2d(
                                     parent_layer,
                                     depth,
@@ -92,9 +92,16 @@ class SSD:
             with tf.variable_scope('out_convo'):
                 self._create_out_convo()
 
-
     def _nested_getattr(self, attr):
+        #getattr built-in extended with capability of handling nested attributes
         return functools.reduce(getattr, attr.split('.'), self)
+
+    def _smooth_l1(x):
+        L2 = tf.square(x)/2
+        L1 = tf.abs(x) - 0.5
+        cond = tf.less(tf.abs(x), 1.0)
+        distance = tf.select(cond, L2, L1)
+        return distance
 
     @property
     def sess(self):
