@@ -1,0 +1,35 @@
+{
+    "train":
+    {
+        "images": "VOCtrainval_06-Nov-2007/VOCdevkit/VOC2007/JPEGImages",
+        "annotations": "VOCtrainval_06-Nov-2007/VOCdevkit/VOC2007/Annotations"
+    },
+    "test":
+    {
+        "images": "VOCtest_06-Nov-2007/VOCdevkit/VOC2007/JPEGImages",
+        "annotations": "VOCtest_06-Nov-2007/VOCdevkit/VOC2007/Annotations"
+    },
+    "class_names":
+    [
+        "pottedplant",
+        "boat",
+        "aeroplane",
+        "motorbike",
+        "cow",
+        "sheep",
+        "bus",
+        "bicycle",
+        "person",
+        "car",
+        "diningtable",
+        "cat",
+        "tvmonitor",
+        "sofa",
+        "bird",
+        "train",
+        "bottle",
+        "dog",
+        "chair",
+        "horse"
+    ]
+}
