@@ -85,55 +85,55 @@
         {"conv_out1_1": 
             {
                 "parent": "vgg_16.conv4_3",
-                "depth": 1024,
                 "kernel_size": [3, 3],
                 "stride": 1,
-                "layer_boxes": 3
+                "layer_boxes": 3,
+                "box_ratios": [1, 2, 0.667]
             }
         },
         {"conv_out2_1": 
             {
                 "parent": "conv2_1",
-                "depth": 1024,
                 "kernel_size": [3, 3],
                 "stride": 1,
-                "layer_boxes": 3
+                "layer_boxes": 3,
+                "box_ratios": [1, 2, 0.667]
             }
         },
         {"conv_out3_1": 
             {
                 "parent": "conv3_2",
-                "depth": 256,
                 "kernel_size": [3, 3],
                 "stride": 1,
-                "layer_boxes": 3
+                "layer_boxes": 3,
+                "box_ratios": [1, 2, 0.667]
             }
         },
         {"conv_out4_1": 
             {
                 "parent": "conv4_2",
-                "depth": 512,
                 "kernel_size": [3, 3],
                 "stride": 1,
-                "layer_boxes": 3
+                "layer_boxes": 3,
+                "box_ratios": [1, 2, 0.667]
             }
         },
         {"conv_out5_1": 
             {
                 "parent": "conv6_2",
-                "depth": 128,
                 "kernel_size": [3, 3],
                 "stride": 1,
-                "layer_boxes": 3
+                "layer_boxes": 3,
+                "box_ratios": [1, 2, 0.667]
             }
         },
         {"conv_out_6_1": 
             {
                 "parent": "avg_pool7_1",
-                "depth": 256,
                 "kernel_size": [1, 1],
                 "stride": 1,
-                "layer_boxes": 3
+                "layer_boxes": 3,
+                "box_ratios": [1, 2, 0.667]
             }
         }
     ],
