@@ -7,6 +7,7 @@ from tensorflow.contrib import slim
 
 from vgg.vgg import VGG_16
 import misc
+import preprocessing
 
 class SSD:
 
@@ -25,10 +26,11 @@ class SSD:
         self._create_graph()
         self._create_placeholders()
         self.model_vars = self._get_vars_by_scope(self.scope)
-        self._init_vars(self)
-        self._init_vars(self.vgg_16)
+        self._init_vars(self.model_vars)
+        self._init_vars(self.vgg_16.model_vars)
         self.vgg_16.load_convo_weights_from_npz(sess=self.sess)
-        self._create_loss()
+        self.loss = self._create_loss()
+        self._create_optimizer(self.loss)
         print('Number of parameters for {scope}: {n:.1f}M'.format(
             scope=self.scope, n=self._number_of_parameters(self.model_vars)/1e6))
 
@@ -120,12 +122,23 @@ class SSD:
         self.images = self.vgg_16.inputs
         self.labels = tf.placeholder(dtype=tf.int32, shape=(None, self.total_boxes))
         self.offsets = tf.placeholder(dtype=tf.float32, shape=(None, self.total_boxes, 4))
+        self.learning_rate = tf.placeholder(dtype=tf.float32)
 
     def _create_loss(self):
         self.classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(self.predicted_labels, self.labels)
         self.localization_loss = self._smooth_L1(self.predicted_offsets - self.offsets)
 
-        self.loss = tf.reduce_mean(self.classification_loss + tf.reduce_mean(self.localization_loss, 2))
+        loss = tf.reduce_mean(self.classification_loss + tf.reduce_mean(self.localization_loss, 2))
+        return loss
+
+    def _create_optimizer(self, loss):
+        with tf.variable_scope('Optimizer_' + self.scope):
+            optimizer = tf.train.AdamOptimizer(
+                            learning_rate=self.learning_rate)
+            grads_and_vars = optimizer.compute_gradients(loss)
+            self.train_step = optimizer.apply_gradients(grads_and_vars)
+        self.optimizer_vars = self._get_vars_by_scope('Optimizer_' + self.scope)
+        self._init_vars(self.optimizer_vars)
 
     def _nested_getattr(self, attr):
         #getattr built-in extended with capability of handling nested attributes
@@ -161,6 +174,22 @@ class SSD:
     def n_classes(self):
         return len(self.class_names)
 
-    def _init_vars(self, model):
-        self.sess.run(tf.variables_initializer(model.model_vars))
-        print('\nInitialized variables for {scope}.'.format(scope=model.scope))
+    def _init_vars(self, vars_=None):
+        self.sess.run(tf.variables_initializer(vars_))
+
+    def train(self, loader, default_boxes, overlap_threshold,
+              batch_size, learning_rate, n_iter):
+
+        for iteration in range(n_iter):
+            batch = loader.new_batch(batch_size)
+            images, offsets, labels = preprocessing.get_feed(
+                            batch, self, default_boxes, overlap_threshold)
+            feed_dict = {
+                         self.offsets: offsets,
+                         self.labels: labels,
+                         self.images: images,
+                         self.learning_rate: learning_rate}
+
+            _, loss = self.sess.run([self.train_step, self.loss], feed_dict)
+            print(loss)
+
