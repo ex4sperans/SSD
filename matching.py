@@ -1,5 +1,7 @@
-import boxes
 from math import floor, ceil
+
+import boxes
+import misc
 
 def match_boxes(annotations, image, default_boxes, out_shapes, threshold):
 
@@ -9,7 +11,7 @@ def match_boxes(annotations, image, default_boxes, out_shapes, threshold):
     #default boxes is assumed to be a 4d nested list
     for class_name, ground_truth_box in annotations:
         for i, out_shape in enumerate(out_shapes):
-            out_height, out_width = boxes.height_and_width(out_shape)
+            out_height, out_width = misc.height_and_width(out_shape)
             ground_truth_box = boxes.centerbox_to_boundbox(ground_truth_box)
             scaled_ground_truth_box = boxes.normalize_box(ground_truth_box, image_height, image_width)
             

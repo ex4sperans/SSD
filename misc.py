@@ -3,7 +3,9 @@ import json
 import os
 import fnmatch
 
-from scipy import ndimage
+from scipy.ndimage import imread
+from scipy.misc import imresize
+
 
 def flatten_list(nested_list):
     #flatten nested list of arbitrary depth
@@ -22,7 +24,7 @@ def height_and_width(shape):
             ' width from shape {shape}.'.format(shape=shape))
 
 def load_image(image_path):
-        return ndimage.imread(image_path)
+        return imread(image_path)
 
 def load_json(file_path):
         with open(file_path, 'r') as f:
@@ -30,7 +32,7 @@ def load_json(file_path):
         return data
 
 def resize(image, new_shape):
-        return misc.imresize(image, new_shape) 
+        return imresize(image, new_shape) 
 
 def find_files(path, file_type, sort=True):
     files = list()
