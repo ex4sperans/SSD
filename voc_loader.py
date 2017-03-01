@@ -5,7 +5,7 @@ import functools
 
 import numpy as np
 
-from boxes import BoundBox, CenterBox
+import boxes
 import misc
 
 class VOCLoader:
@@ -35,7 +35,7 @@ class VOCLoader:
         annotation['objects'] = list()
         for obj in root.findall('object'):
             #xmin, ymin, xmax, ymax
-            bbox = BoundBox(*[int(coord.text) for coord in obj.find('bndbox')])
+            bbox = boxes.BoundBox(*[int(coord.text) for coord in obj.find('bndbox')])
             annotation['objects'].append((obj.find('name').text, bbox))
         return annotation
 
@@ -46,8 +46,7 @@ class VOCLoader:
                 for image, annotation in batch]
 
         if hasattr(self, '_preprocess'):
-            batch = [(self._preprocess(image), annotation)
-                    for image, annotation in batch]
+            batch = [self._preprocess(image, annotation) for image, annotation in batch]
 
         return batch
 
@@ -55,7 +54,17 @@ class VOCLoader:
         if isinstance(preprocessing, tuple):
             preprocessing_type, preprocessing_params = preprocessing
             if preprocessing_type == 'resize':
-                self._preprocess = functools.partial(
-                    misc.resize, new_shape=preprocessing_params)
-
-    
+                height, width = misc.height_and_width(preprocessing_params)
+                def _preprocess(image, annotation):
+                    image_height, image_width = misc.height_and_width(image.shape)
+                    image = misc.resize(image, preprocessing_params)
+                    process_box = functools.partial(
+                                                    boxes.resize_box,
+                                                    orig_height=image_height,
+                                                    orig_width=image_width,
+                                                    new_height=height,
+                                                    new_width=width)
+                    annotation['objects'] = [(class_name, process_box(box))
+                                            for class_name, box in annotation['objects']]
+                    return image, annotation
+                self._preprocess = _preprocess

@@ -110,6 +110,7 @@ def get_default_boxes(out_shapes, box_ratios):
                         for j in range(out_height)]
                         for i in range(out_width)]
         default_boxes.append(layer_boxes)
+    print('\nNumber of default boxes: {n}.'.format(n=len(misc.flatten_list(default_boxes))))
     return default_boxes
 
 def intersection(box1, box2):
@@ -156,6 +157,11 @@ def recover_box(box, height, width):
                    y_max=int(box.y_max*height))
     return box
 
+def resize_box(box, orig_height, orig_width, new_height, new_width):
+    normalized_box = normalize_box(box, orig_height, orig_width)
+    return recover_box(normalized_box, new_height, new_width) 
+
+
 def plot_with_bboxes(image, save_path, file_name, 
                     bboxes, ground_truth_boxes):
 
@@ -191,7 +197,7 @@ if __name__ == '__main__':
                   (1, 3, 3, 75), 
                   (1, 1, 1, 75)]
 
-    box_ratios = [1, 1/2, 2]
+    box_ratios = [[1, 1/2, 2]]*len(out_shapes)
        
     box_set = get_default_boxes(out_shapes, box_ratios)
 
