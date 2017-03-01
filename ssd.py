@@ -12,7 +12,7 @@ class SSD:
 
     def __init__(self, model_params_path='ssd_params.json'):
 
-        model_params = self._load_params_json(model_params_path)
+        model_params = misc.load_json(model_params_path)
 
         self.input_shape = model_params['input_shape']
         self.class_names = model_params['class_names']
@@ -21,11 +21,15 @@ class SSD:
         self.scope = model_params['scope']
         self.first_layer = model_params['first_layer']
 
-        self.vgg_16 = VGG_16(self.input_shape, self.class_names)
+        self.vgg_16 = VGG_16(self.input_shape)
         self._create_graph()
-
+        self._create_placeholders()
         self.model_vars = self._get_vars_by_scope(self.scope)
-        print('\nNumber of parameters for {scope}: {n:.1f}M'.format(
+        self._init_vars(self)
+        self._init_vars(self.vgg_16)
+        self.vgg_16.load_convo_weights_from_npz(sess=self.sess)
+        self._create_loss()
+        print('Number of parameters for {scope}: {n:.1f}M'.format(
             scope=self.scope, n=self._number_of_parameters(self.model_vars)/1e6))
 
     def _create_feedforward_convo(self):
@@ -113,10 +117,15 @@ class SSD:
                 self._create_out_convo()
 
     def _create_placeholders(self):
-
         self.images = self.vgg_16.inputs
         self.labels = tf.placeholder(dtype=tf.int32, shape=(None, self.total_boxes))
-        self.offsets = tf.placeholder(dtype=tf.float32, shape=(None, 4))
+        self.offsets = tf.placeholder(dtype=tf.float32, shape=(None, self.total_boxes, 4))
+
+    def _create_loss(self):
+        self.classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(self.predicted_labels, self.labels)
+        self.localization_loss = self._smooth_L1(self.predicted_offsets - self.offsets)
+
+        self.loss = tf.reduce_mean(self.classification_loss + tf.reduce_mean(self.localization_loss, 2))
 
     def _nested_getattr(self, attr):
         #getattr built-in extended with capability of handling nested attributes
@@ -148,12 +157,10 @@ class SSD:
     def _number_of_parameters(self, vars_):
         return sum(np.prod(v.get_shape().as_list()) for v in vars_)
 
-    def _load_params_json(self, json_path):
-        with open(json_path, 'r') as f:
-            params = json.load(f)
-        return params
-
     @property
     def n_classes(self):
         return len(self.class_names)
 
+    def _init_vars(self, model):
+        self.sess.run(tf.variables_initializer(model.model_vars))
+        print('\nInitialized variables for {scope}.'.format(scope=model.scope))

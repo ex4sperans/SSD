@@ -8,7 +8,7 @@ from tensorflow.contrib import slim
 
 class VGG_16:
 
-    def __init__(self, input_shape, class_names, model_params_path='vgg/vgg_params.json'):
+    def __init__(self, input_shape, model_params_path='vgg/vgg_params.json'):
 
         model_params = self._load_params_json(model_params_path)
 
@@ -58,7 +58,7 @@ class VGG_16:
             with tf.variable_scope('convo_layers'):
                 self.convo_output = self._create_convo_layers(self.inputs)
 
-    def load_convo_weights(self, model_path='vgg/vgg16_weights.npz', sess=None):
+    def load_convo_weights_from_npz(self, model_path='vgg/vgg16_weights.npz', sess=None):
 
         sess = sess or self.sess
         saved_weights = np.load(model_path)
