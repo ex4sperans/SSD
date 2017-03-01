@@ -6,6 +6,7 @@ import tensorflow as tf
 from tensorflow.contrib import slim
 
 from vgg.vgg import VGG_16
+import misc
 
 class SSD:
 
@@ -64,6 +65,7 @@ class SSD:
 
             print('\nCreating layers for {scope}:'.format(scope=self.scope))
 
+            out_layers = []
             for layer_params in self.out_convo_architecture:
                 (name, params), = layer_params.items()
 
@@ -73,7 +75,9 @@ class SSD:
                 #plus number of layer boxes times 4 (box correction)
                 #layer boxes is the number of boxes per pixel of CNN feature map
                 #usually is set to 2, 3 or 6
-                depth = params['layer_boxes']*(self.n_classes + 1 + 4)
+                layer_boxes = params['layer_boxes']
+                depth_per_box = self.n_classes + 1 + 4
+                depth = layer_boxes*depth_per_box
 
                 layer = slim.conv2d(
                                     parent_layer,
@@ -81,9 +85,21 @@ class SSD:
                                     params['kernel_size'],
                                     params['stride'],
                                     scope=name)  
+
                 setattr(self, name, layer)
                 print('{name} with shape {shape}'.format(
                         name=name, shape=layer.get_shape()))
+                height, width = misc.height_and_width(layer.get_shape().as_list())
+                new_shape = (-1, height*width*layer_boxes, depth_per_box)
+                out_layers.append(tf.reshape(layer, new_shape))
+
+            stacked_out_layers = tf.concat(1, out_layers)
+            #slice stacked output along third dimension 
+            #to obtain labels and offsets 
+            self.predicted_labels = tf.slice(stacked_out_layers, [0, 0, 0], [-1, -1, self.n_classes + 1])
+            self.predicted_offsets = tf.slice(stacked_out_layers, [0, 0, self.n_classes + 1], [-1, -1, 4]) 
+            print('Predicted labels shape: {shape}'.format(shape=self.predicted_labels.get_shape()))
+            print('Predicted offsets shape: {shape}'.format(shape=self.predicted_offsets.get_shape()))
 
     def _create_graph(self):
         with tf.variable_scope(self.scope):
@@ -96,7 +112,7 @@ class SSD:
         #getattr built-in extended with capability of handling nested attributes
         return functools.reduce(getattr, attr.split('.'), self)
 
-    def _smooth_l1(x):
+    def _smooth_L1(self, x):
         L2 = tf.square(x)/2
         L1 = tf.abs(x) - 0.5
         cond = tf.less(tf.abs(x), 1.0)
