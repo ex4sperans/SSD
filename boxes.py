@@ -5,10 +5,12 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 
+import misc
+
 BoundBox = namedtuple('BoundBox', ['x_min', 'y_min', 'x_max', 'y_max'])
 CenterBox = namedtuple('CenterBox', ['center_x', 'center_y', 'width', 'height'])
 
-def from_boundbox_to_centerbox(box):
+def boundbox_to_centerbox(box):
     if isinstance(box, CenterBox):
         return box
     elif isinstance(box, BoundBox):
@@ -23,9 +25,10 @@ def from_boundbox_to_centerbox(box):
                          width=width,
                          height=height)
     else:
-        raise TypeError('`box` should be either CenterBox or BoundBox.')
+        raise TypeError('`box` should be either CenterBox or BoundBox.'\
+            ' But `box` is of type {box_type}.'.format(box_type=type(box)))
 
-def from_centerbox_to_boundbox(box):
+def centerbox_to_boundbox(box):
     if isinstance(box, BoundBox):
         return box
     elif isinstance(box, CenterBox):
@@ -40,12 +43,13 @@ def from_centerbox_to_boundbox(box):
                         x_max=x_max,
                         y_max=y_max)
     else:
-        raise TypeError('`box` should be either CenterBox or BoundBox.')
+        raise TypeError('`box` should be either CenterBox or BoundBox.'\
+            ' But `box` is of type {box_type}.'.format(box_type=type(box)))
 
-def plot_boxes(boxes, save_path, name):
+def plot_default_boxes(boxes, save_path, name):
     fig = plt.figure(figsize=(10, 10))
     ax = fig.add_subplot(111)
-    boxes = [from_centerbox_to_boundbox(box) for box in boxes]
+    boxes = [centerbox_to_boundbox(box) for box in boxes]
     colormap = iter(matplotlib.cm.jet(np.linspace(0, 1, len(boxes))))
     for box in boxes:
         xmin, ymin, xmax, ymax = box 
@@ -58,13 +62,28 @@ def plot_boxes(boxes, save_path, name):
 
 def box_scale(k, m):
     s_min = 0.2
-    s_max = 0.95
+    s_max = 0.9
     #equation 4 from paper
     s_k = s_min + (s_max - s_min) * (k - 1.0) / (m - 1.0) 
     return s_k
 
-def feature_map_shape(out_shape):
-    return out_shape[1], out_shape[2]
+def height_and_width(shape):
+    if len(shape) == 4:
+        return shape[1], shape[2]
+    elif len(shape) == 3:
+        return shape[0], shape[1]
+    else:
+        raise ValueError('Could not infer height and'\
+            ' width from shape {shape}.'.format(shape=shape))
+
+def clip_box(box, maxval=1, minval=0):
+    box = centerbox_to_boundbox(box)
+    box = BoundBox(
+                   x_min=max(box.x_min, minval),
+                   y_min=max(box.y_min, minval),
+                   x_max=min(box.x_max, maxval),
+                   y_max=min(box.y_max, maxval))
+    return boundbox_to_centerbox(box)
 
 def default_box(i, j, scale, box_ratio, width, height):
 
@@ -73,29 +92,29 @@ def default_box(i, j, scale, box_ratio, width, height):
     center_x = (i + 0.5)/width
     center_y = (j + 0.5)/height
 
-    return CenterBox(
+    return clip_box(CenterBox(
                      center_x=center_x,
                      center_y=center_y,
                      width=default_w,
-                     height=default_h)
+                     height=default_h))
 
 def get_default_boxes(out_shapes, box_ratios):
-    boxes = []
-
-    for out_n, out_shape in enumerate(out_shapes):
-        layer_boxes = []
-        scale = box_scale(out_n + 1, len(box_ratios))
-        out_width, out_height = feature_map_shape(out_shape)
-        layer_boxes = [default_box(i, j, scale, box_ratio, out_width, out_height)
-                        for box_ratio in box_ratios
-                        for j in range(out_height)
+    default_boxes = []
+    n_outs = len(out_shapes)
+    scales = [box_scale(n_out + 1, n_outs) for n_out in range(n_outs)]
+    layer_params = zip(out_shapes, scales, box_ratios)
+    for out_shape, scale, layer_box_ratios in layer_params:
+        out_height, out_width = misc.height_and_width(out_shape)
+        layer_boxes = [[[default_box(i, j, scale, box_ratio, out_width, out_height)
+                        for box_ratio in layer_box_ratios]
+                        for j in range(out_height)]
                         for i in range(out_width)]
-        boxes.append(layer_boxes)
-    return boxes
+        default_boxes.append(layer_boxes)
+    return default_boxes
 
 def intersection(box1, box2):
-    box1 = from_centerbox_to_boundbox(box1)
-    box2 = from_centerbox_to_boundbox(box2)
+    box1 = centerbox_to_boundbox(box1)
+    box2 = centerbox_to_boundbox(box2)
 
     x_min1, y_min1, x_max1, y_max1 = box1
     x_min2, y_min2, x_max2, y_max2 = box2
@@ -112,11 +131,56 @@ def intersection(box1, box2):
 
 def jaccard_overlap(box1, box2):
     intersection_ = intersection(box1, box2)
-    box1 = from_boundbox_to_centerbox(box1)
-    box2 = from_boundbox_to_centerbox(box2)
+    box1 = boundbox_to_centerbox(box1)
+    box2 = boundbox_to_centerbox(box2)
     union = box1.width*box1.height + box2.width*box2.height - intersection_
     return intersection_/union if union > 0 else 0 
 
+def normalize_box(box, height, width):
+    #normalize width and height of a box to be in range (0, 1)
+    box = centerbox_to_boundbox(box)
+    box = BoundBox(
+                   x_min=box.x_min/width,
+                   y_min=box.y_min/height,
+                   x_max=box.x_max/width,
+                   y_max=box.y_max/height)
+    return box
+
+def recover_box(box, height, width):
+    #recovers a box (translates ratios to pixels)
+    box = centerbox_to_boundbox(box)
+    box = BoundBox(
+                   x_min=int(box.x_min*width),
+                   y_min=int(box.y_min*height),
+                   x_max=int(box.x_max*width),
+                   y_max=int(box.y_max*height))
+    return box
+
+def plot_with_bboxes(image, save_path, file_name, 
+                    bboxes, ground_truth_boxes):
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.imshow(image)
+
+    for bbox in bboxes:
+        xmin, ymin, xmax, ymax = bbox 
+        bx = (xmin, xmax, xmax, xmin, xmin)
+        by = (ymin, ymin, ymax, ymax, ymin)
+        ax.plot(bx, by, c='b', lw=2)
+
+    for gtbox in ground_truth_boxes:
+        xmin, ymin, xmax, ymax = gtbox 
+        bx = (xmin, xmax, xmax, xmin, xmin)
+        by = (ymin, ymin, ymax, ymax, ymin)
+        ax.plot(bx, by, c='g', lw=2)
+        
+    ax.set_axis_off()    
+    os.makedirs(save_path, exist_ok=True)
+    fig.savefig(os.path.join(save_path, file_name))
+    plt.close()
+
+    
 if __name__ == '__main__':
     
     out_shapes = [
@@ -127,10 +191,12 @@ if __name__ == '__main__':
                   (1, 3, 3, 75), 
                   (1, 1, 1, 75)]
 
-    box_ratios = [1, 1/3, 3]
+    box_ratios = [1, 1/2, 2]
        
     box_set = get_default_boxes(out_shapes, box_ratios)
+
     for boxes, shape in zip(box_set, out_shapes):
+        boxes = misc.flatten_list(boxes)
         print('Plotting boxes for shape {shape}. Number of boxes: {n}.'.format(
                 shape=shape, n=len(boxes)))
-        plot_boxes(boxes, 'default_boxes', ' '.join(str(s) for s in shape))
+        plot_default_boxes(boxes, 'default_boxes', ' '.join(str(s) for s in shape))
