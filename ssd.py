@@ -65,7 +65,8 @@ class SSD:
 
             print('\nCreating layers for {scope}:'.format(scope=self.scope))
 
-            out_layers = []
+            out_layers, self.out_shapes, self.box_ratios = [], [], []
+
             for layer_params in self.out_convo_architecture:
                 (name, params), = layer_params.items()
 
@@ -75,7 +76,8 @@ class SSD:
                 #plus number of layer boxes times 4 (box correction)
                 #layer boxes is the number of boxes per pixel of CNN feature map
                 #usually is set to 2, 3 or 6
-                layer_boxes = params['layer_boxes']
+                layer_boxes = len(params['box_ratios'])
+                self.box_ratios.append(params['box_ratios'])
                 depth_per_box = self.n_classes + 1 + 4
                 depth = layer_boxes*depth_per_box
 
@@ -92,13 +94,15 @@ class SSD:
                 height, width = misc.height_and_width(layer.get_shape().as_list())
                 new_shape = (-1, height*width*layer_boxes, depth_per_box)
                 out_layers.append(tf.reshape(layer, new_shape))
+                self.out_shapes.append(tuple(layer.get_shape().as_list()))
 
             stacked_out_layers = tf.concat(1, out_layers)
             #slice stacked output along third dimension 
             #to obtain labels and offsets 
+            self.total_boxes = stacked_out_layers.get_shape().as_list()[1]
             self.predicted_labels = tf.slice(stacked_out_layers, [0, 0, 0], [-1, -1, self.n_classes + 1])
             self.predicted_offsets = tf.slice(stacked_out_layers, [0, 0, self.n_classes + 1], [-1, -1, 4]) 
-            print('Predicted labels shape: {shape}'.format(shape=self.predicted_labels.get_shape()))
+            print('\nPredicted labels shape: {shape}'.format(shape=self.predicted_labels.get_shape()))
             print('Predicted offsets shape: {shape}'.format(shape=self.predicted_offsets.get_shape()))
 
     def _create_graph(self):
@@ -107,6 +111,12 @@ class SSD:
                 self._create_feedforward_convo()
             with tf.variable_scope('out_convo'):
                 self._create_out_convo()
+
+    def _create_placeholders(self):
+
+        self.images = self.vgg_16.inputs
+        self.labels = tf.placeholder(dtype=tf.int32, shape=(None, self.total_boxes))
+        self.offsets = tf.placeholder(dtype=tf.float32, shape=(None, 4))
 
     def _nested_getattr(self, attr):
         #getattr built-in extended with capability of handling nested attributes

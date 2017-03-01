@@ -13,7 +13,6 @@ class VGG_16:
         model_params = self._load_params_json(model_params_path)
 
         self.input_shape = input_shape
-        self.class_names = class_names
         self.convo_architecture = model_params['convo_architecture']
         self.scope = model_params['scope']
 
@@ -27,7 +26,6 @@ class VGG_16:
     def _create_placeholders(self):
 
         self.inputs = tf.placeholder(tf.float32, shape=[None] + self.input_shape)
-        self.labels = tf.placeholder(tf.float32, shape=[None, len(self.class_names)])
 
     def _create_convo_layers(self, inputs):
 
