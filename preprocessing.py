@@ -1,4 +1,6 @@
 import boxes
+import misc
+from matching import match_boxes
 
 def offsets(ground_truth_box, default_box):
 
@@ -9,7 +11,7 @@ def offsets(ground_truth_box, default_box):
 
 def process_matches(matches, default_boxes, class_names):
 
-    background_class = len(class_names) + 1
+    background_class = len(class_names)
 
     def offsets_and_class(default_box):
         for matched_default_box, (ground_truth_box, class_name) in matches:
@@ -25,3 +27,13 @@ def process_matches(matches, default_boxes, class_names):
 
     return feed
 
+def get_feed(batch, model, default_boxes, threshold):
+    images = [image for image, annotation in batch]
+    matches_batch = [match_boxes(annotations['objects'], image, default_boxes, model.out_shapes, threshold)[0]
+                    for image, annotations in batch]
+    feed = [misc.flatten_list(process_matches(matches, default_boxes, model.class_names))
+                 for matches in matches_batch]
+
+    #split feed batch into offsets and labels batches
+    offsets, labels = list(zip(*[list(zip(*f)) for f in feed]))
+    return images, list(offsets), list(labels)
