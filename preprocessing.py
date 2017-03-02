@@ -7,7 +7,11 @@ def offsets(ground_truth_box, default_box):
     ground_truth_box = boxes.boundbox_to_centerbox(ground_truth_box)
     default_box = boxes.boundbox_to_centerbox(default_box)
 
-    return boxes.CenterBox(*[g-d for g, d in zip(ground_truth_box, default_box)])
+    return boxes.CenterBox(
+                           ground_truth_box.center_x - default_box.center_x,
+                           ground_truth_box.center_y - default_box.center_y,
+                           ground_truth_box.width - default_box.width,
+                           ground_truth_box.width - default_box.width)
 
 def process_matches(matches, default_boxes, class_names):
 
