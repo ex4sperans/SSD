@@ -1,3 +1,5 @@
+import numpy as np
+
 import boxes
 import misc
 from matching import match_boxes
@@ -20,7 +22,8 @@ def process_matches(matches, default_boxes, class_names):
     def offsets_and_class(default_box):
         for matched_default_box, (ground_truth_box, class_name) in matches:
             if default_box == matched_default_box:
-                return offsets(ground_truth_box, default_box), class_names.index(class_name)
+                return (offsets(ground_truth_box, default_box),
+                        class_names.index(class_name))
         return boxes.CenterBox(0, 0, 0, 0), background_class
 
     feed = [[[[offsets_and_class(default_box)
@@ -33,11 +36,48 @@ def process_matches(matches, default_boxes, class_names):
 
 def get_feed(batch, model, default_boxes, threshold):
     images = [image for image, annotation in batch]
-    matches_batch = [match_boxes(annotations['objects'], image, default_boxes, model.out_shapes, threshold)[0]
-                    for image, annotations in batch]
-    feed = [misc.flatten_list(process_matches(matches, default_boxes, model.class_names))
-                 for matches in matches_batch]
+    matches_batch = [match_boxes(
+                                annotations=annotation['objects'],
+                                image=image,
+                                default_boxes=default_boxes,
+                                out_shapes=model.out_shapes,
+                                threshold=threshold)[0]
+                        for image, annotation in batch]
+    feed = [misc.flatten_list(process_matches(
+                                              matches=matches,
+                                              default_boxes=default_boxes,
+                                              class_names=model.class_names))
+                for matches in matches_batch]
 
     #split feed batch into offsets and labels batches
     offsets, labels = list(zip(*[list(zip(*f)) for f in feed]))
     return images, list(offsets), list(labels)
+
+def positives_and_negatives(confidences, labels, model, neg_pos_ratio):
+
+    background_class = len(model.class_names)
+    positives = np.not_equal(labels, background_class).astype(np.float32)
+    #calculate the number of matched boxes for each element of batch
+    n_positives = np.sum(positives, 1)
+    n_negatives = n_positives*neg_pos_ratio
+    #choose top confidence for each default box
+    top_confidences = np.amax(confidences, 2)
+    #sort confidences and take the highest among all default boxes
+    #boolean mask is applied to skip confidences with positive indicies
+    sorted_confidences = np.argsort(top_confidences*np.logical_not(positives), 1)
+    #reverse the sequence as argsort produce indidices in ascending order
+    sorted_confidences = np.flip(sorted_confidences, 1)
+
+    #TODO: optimize construction of negative array
+    negative_idx = [np.take(idx, np.arange(n, dtype=np.int32)) 
+                    for idx, n in zip(sorted_confidences, n_negatives)]
+    negatives = np.zeros_like(positives)
+
+    def set_negatives(arr, idx):
+        arr[idx] = 1
+        return arr
+
+    negatives = np.vstack([set_negatives(row, idx) 
+                           for row, idx in zip(negatives, negative_idx)])
+
+    return positives, negatives

@@ -122,13 +122,25 @@ class SSD:
         self.images = self.vgg_16.inputs
         self.labels = tf.placeholder(dtype=tf.int32, shape=(None, self.total_boxes))
         self.offsets = tf.placeholder(dtype=tf.float32, shape=(None, self.total_boxes, 4))
+        self.positives = tf.placeholder(dtype=tf.float32, shape=(None, self.total_boxes))
+        self.negatives = tf.placeholder(dtype=tf.float32, shape=(None, self.total_boxes))
         self.learning_rate = tf.placeholder(dtype=tf.float32)
 
     def _create_loss(self):
-        self.classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(self.predicted_labels, self.labels)
-        self.localization_loss = self._smooth_L1(self.predicted_offsets - self.offsets)
+        positives_and_negatives = self.positives + self.negatives
+        classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
+                                                self.predicted_labels, self.labels)
+        classification_loss *= positives_and_negatives
+        classification_loss = tf.reduce_sum(classification_loss, 1)
+        classification_loss /= tf.reduce_sum(positives_and_negatives, 1) + 1e-6
 
-        loss = tf.reduce_mean(self.classification_loss + tf.reduce_mean(self.localization_loss, 2))
+        localization_loss = self._smooth_L1(self.predicted_offsets - self.offsets)
+        localization_loss = tf.reduce_sum(localization_loss, 2)*self.positives
+        localization_loss = tf.reduce_sum(localization_loss, 1)
+        localization_loss /= tf.reduce_sum(self.positives, 1) + 1e-6
+
+        #average over minibatch
+        loss = tf.reduce_mean(classification_loss + localization_loss)
         return loss
 
     def _create_optimizer(self, loss):
@@ -178,7 +190,7 @@ class SSD:
         self.sess.run(tf.variables_initializer(vars_))
 
     def train(self, loader, default_boxes, overlap_threshold,
-              batch_size, learning_rate, n_iter):
+              neg_pos_ratio, batch_size, learning_rate, n_iter):
 
         for iteration in range(n_iter):
             batch = loader.new_batch(batch_size)
@@ -189,6 +201,16 @@ class SSD:
                          self.labels: labels,
                          self.images: images,
                          self.learning_rate: learning_rate}
+
+            confidences = self.sess.run(
+                                        tf.nn.softmax(self.predicted_labels),
+                                        feed_dict)
+            positives, negatives = preprocessing.positives_and_negatives(
+                            confidences, labels, self, neg_pos_ratio)
+
+            #add positives and negatives to feed dict
+            feed_dict[self.positives] = positives
+            feed_dict[self.negatives] = negatives
 
             _, loss = self.sess.run([self.train_step, self.loss], feed_dict)
             print(loss)
