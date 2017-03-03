@@ -10,7 +10,8 @@ import misc
 
 class VOCLoader:
 
-    def __init__(self, dataset_params_path='voc_dataset_params.json', preprocessing=None):
+    def __init__(self, dataset_params_path='voc_dataset_params.json',
+        preprocessing=None, normalization=None):
 
         self.dataset_params = misc.load_json(dataset_params_path)
         self.train_images = misc.find_files(
@@ -26,6 +27,14 @@ class VOCLoader:
         self.test_set = list(zip(self.test_images, self.test_annotations))
 
         self._set_preprocessing_fn(preprocessing)
+        self._set_normalization_fn(normalization)
+
+        print('\nCreated loader for VOC dataset.')
+        print('Loaded params from {path}'.format(path=dataset_params_path))
+        print('Size of train set: {size}'.format(size=len(self.train_set)))
+        print('Size of test set: {size}'.format(size=len(self.test_set)))
+        print('Preprocessing: {}'.format(preprocessing))
+        print('Normalization: {}'.format(normalization))
         
     @staticmethod
     def parse_annotation(annotation_path):
@@ -48,6 +57,9 @@ class VOCLoader:
         if hasattr(self, '_preprocess'):
             batch = [self._preprocess(image, annotation) for image, annotation in batch]
 
+        if hasattr(self, '_normalize'):
+            batch = [(self._normalize(image), annotation) for image, annotation in batch]
+
         return batch
 
     def _set_preprocessing_fn(self, preprocessing):
@@ -68,3 +80,10 @@ class VOCLoader:
                                             for class_name, box in annotation['objects']]
                     return image, annotation
                 self._preprocess = _preprocess
+
+    def _set_normalization_fn(self, normalization):
+        if isinstance(normalization, str):
+            if normalization == 'divide_255':
+                def divide_255(image):
+                    return image/255
+                self._normalize = divide_255
