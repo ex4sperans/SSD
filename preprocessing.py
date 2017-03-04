@@ -6,6 +6,7 @@ from matching import match_boxes
 
 def offsets(ground_truth_box, default_box):
 
+    #offsets based on differences
     ground_truth_box = boxes.boundbox_to_centerbox(ground_truth_box)
     default_box = boxes.boundbox_to_centerbox(default_box)
 
@@ -15,6 +16,18 @@ def offsets(ground_truth_box, default_box):
                            ground_truth_box.width - default_box.width,
                            ground_truth_box.height - default_box.height)
 
+def log_offsets(ground_truth_box, default_box):
+
+    #offsets based on ratios
+    ground_truth_box = boxes.boundbox_to_centerbox(ground_truth_box)
+    default_box = boxes.boundbox_to_centerbox(default_box)
+
+    return boxes.CenterBox(
+                           (ground_truth_box.center_x - default_box.center_x)/default_box.width,
+                           (ground_truth_box.center_y - default_box.center_y)/default_box.height,
+                           np.log(ground_truth_box.width/default_box.width),
+                           np.log(ground_truth_box.height/default_box.height))
+
 def process_matches(matches, default_boxes, class_names):
 
     background_class = len(class_names)
@@ -22,7 +35,7 @@ def process_matches(matches, default_boxes, class_names):
     def offsets_and_class(default_box):
         for matched_default_box, (ground_truth_box, class_name) in matches:
             if default_box == matched_default_box:
-                return (offsets(ground_truth_box, default_box),
+                return (log_offsets(ground_truth_box, default_box),
                         class_names.index(class_name))
         return boxes.CenterBox(0, 0, 0, 0), background_class
 

@@ -12,6 +12,15 @@ def apply_offsets(default_box, offsets):
                            default_box.width + offsets.width,
                            default_box.height + offsets.height)
 
+def apply_log_offsets(default_box, offsets):
+
+    return boxes.CenterBox(
+                           default_box.center_x + offsets.center_x*default_box.width,
+                           default_box.center_y + offsets.center_y*default_box.height,
+                           default_box.width*np.exp(offsets.width),
+                           default_box.height*np.exp(offsets.height))
+
+
 def non_maximum_supression(confidences, default_boxes, corrections, 
                            class_names, threshold, height, width):
 
@@ -30,8 +39,8 @@ def non_maximum_supression(confidences, default_boxes, corrections,
     for default_box, label, correction, confidence, in zip(default_boxes, labels, corrections, top_confidences):
         if label != background_class:
             correction = boxes.CenterBox(*correction)
-            non_background_boxes.append((apply_offsets(default_box, correction), label))
-        if confidence < 0.01:
+            non_background_boxes.append((apply_log_offsets(default_box, correction), label))
+        if confidence < 0.05:
             break
 
     choices = []
@@ -48,10 +57,13 @@ def non_maximum_supression(confidences, default_boxes, corrections,
         if len(choices) > 20:
             break
 
-    bboxes, labels = list(zip(*choices))
-    bboxes = list(boxes.clip_box(box) for box in bboxes)
-    bboxes = list(boxes.recover_box(box, height, width) for box in bboxes)
-    labels = list(class_names[l] for l in labels)
+    if choices:
+        bboxes, labels = list(zip(*choices))
+        bboxes = list(boxes.clip_box(box) for box in bboxes)
+        bboxes = list(boxes.recover_box(box, height, width) for box in bboxes)
+        labels = list(class_names[l] for l in labels)
+    else:
+        bboxes, labels = [], []
     return bboxes, labels
 
 
