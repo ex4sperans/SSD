@@ -48,9 +48,9 @@ class VOCLoader:
             annotation['objects'].append((obj.find('name').text, bbox))
         return annotation
 
-    def new_batch(self, batch_size):
+    def new_batch(self, batch_size, dataset):
 
-        batch = random.sample(self.train_set, batch_size)
+        batch = random.sample(dataset, batch_size)
         batch = [(misc.load_image(image), VOCLoader.parse_annotation(annotation))
                 for image, annotation in batch]
 
@@ -61,6 +61,13 @@ class VOCLoader:
             batch = [(self._normalize(image), annotation) for image, annotation in batch]
 
         return batch
+
+    def new_train_batch(self, batch_size):
+        return self.new_batch(batch_size, self.train_set)
+
+    def new_test_batch(self, batch_size):
+        return self.new_batch(batch_size, self.test_set)
+
 
     def _set_preprocessing_fn(self, preprocessing):
         if isinstance(preprocessing, tuple):

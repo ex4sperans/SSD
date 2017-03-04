@@ -19,19 +19,19 @@ def non_maximum_supression(confidences, default_boxes, corrections,
     default_boxes = misc.flatten_list(default_boxes)
     labels = np.argmax(confidences, 1)
     top_confidences = np.amax(confidences, 1)
-    idx = np.flip(np.argsort(top_confidences), 0)
 
-    top_confidences = top_confidences[idx] 
+    idx = np.flip(np.argsort(top_confidences), 0) 
+    top_confidences = top_confidences[idx]
     labels = labels[idx]
     default_boxes = [default_boxes[i] for i in idx]
     corrections = corrections[idx]
     non_background_boxes = []
 
-    for default_box, label, correction, confidence in zip(default_boxes, labels, corrections, top_confidences):
+    for default_box, label, correction, confidence, in zip(default_boxes, labels, corrections, top_confidences):
         if label != background_class:
             correction = boxes.CenterBox(*correction)
             non_background_boxes.append((apply_offsets(default_box, correction), label))
-        if confidence < 0.05:
+        if confidence < 0.01:
             break
 
     choices = []
@@ -45,7 +45,7 @@ def non_maximum_supression(confidences, default_boxes, corrections,
                 break
         if add:
             choices.append((corrected_box, label))
-        if len(choices) > 50: 
+        if len(choices) > 20:
             break
 
     bboxes, labels = list(zip(*choices))
@@ -54,21 +54,30 @@ def non_maximum_supression(confidences, default_boxes, corrections,
     return bboxes, labels
 
 
-def draw_top_boxes(image, confidences, corrections, default_boxes,
-                 threshold, save_path, file_name, model):
+def draw_top_boxes(batch, confidences, corrections, default_boxes,
+                 threshold, save_path, iteration, model):
 
     height, width = misc.height_and_width(model.input_shape)
-    bboxes, labels = non_maximum_supression(
-                                            confidences,
-                                            default_boxes,
-                                            corrections,
-                                            model.class_names,
-                                            threshold,
-                                            height,
-                                            width)
-    boxes.plot_predicted_bboxes(
-                                image,
-                                save_path,
-                                file_name,
-                                bboxes=bboxes,
-                                labels=labels)
+
+    for box_confidences, box_corrections, image_annotation_pair in zip(
+                                                                       confidences,
+                                                                       corrections,
+                                                                       batch):
+
+        image, annotation = image_annotation_pair
+        file_name = annotation['file_name']
+
+        bboxes, labels = non_maximum_supression(
+                                                confidences=box_confidences,
+                                                default_boxes=default_boxes,
+                                                corrections=box_corrections,
+                                                class_names=model.class_names,
+                                                threshold=threshold,
+                                                height=height,
+                                                width=width)
+        boxes.plot_predicted_bboxes(
+                                    image=image,
+                                    save_path=save_path,
+                                    file_name='iteration{} {}'.format(iteration, file_name),
+                                    bboxes=bboxes,
+                                    labels=labels)
