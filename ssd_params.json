@@ -154,5 +154,6 @@
         "chair",
         "horse"
     ],
-    "scope": "SSD"
+    "scope": "SSD",
+    "model_path": "saved_models/SSD"
 }

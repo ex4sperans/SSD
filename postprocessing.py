@@ -49,6 +49,7 @@ def non_maximum_supression(confidences, default_boxes, corrections,
             break
 
     bboxes, labels = list(zip(*choices))
+    bboxes = list(boxes.clip_box(box) for box in bboxes)
     bboxes = list(boxes.recover_box(box, height, width) for box in bboxes)
     labels = list(class_names[l] for l in labels)
     return bboxes, labels

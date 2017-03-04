@@ -1,5 +1,5 @@
-import json
 import functools
+import os
 
 import numpy as np
 import tensorflow as tf
@@ -13,7 +13,7 @@ import boxes
 
 class SSD:
 
-    def __init__(self, model_params_path='ssd_params.json'):
+    def __init__(self, model_params_path='ssd_params.json', resume=True):
 
         model_params = misc.load_json(model_params_path)
 
@@ -23,14 +23,21 @@ class SSD:
         self.out_convo_architecture = model_params['out_convo_architecture']
         self.scope = model_params['scope']
         self.first_layer = model_params['first_layer']
+        self.model_path = model_params['model_path']
 
         self.vgg_16 = VGG_16(self.input_shape)
         self._create_graph()
         self._create_placeholders()
         self.model_vars = self._get_vars_by_scope(self.scope)
-        self._init_vars(self.model_vars)
-        self._init_vars(self.vgg_16.model_vars)
-        self.vgg_16.load_convo_weights_from_npz(sess=self.sess)
+        self.saver = self._create_saver(self.model_vars + self.vgg_16.model_vars)
+
+        if resume:
+            self.load_model(verbose=True)
+        else:
+            self._init_vars(self.model_vars)
+            self._init_vars(self.vgg_16.model_vars)
+            self.vgg_16.load_convo_weights_from_npz(sess=self.sess)
+
         self.loss = self._create_loss()
         self._create_optimizer(self.loss)
         print('Number of parameters for {scope}: {n:.1f}M'.format(
@@ -157,6 +164,9 @@ class SSD:
         self.optimizer_vars = self._get_vars_by_scope('Optimizer_' + self.scope)
         self._init_vars(self.optimizer_vars)
 
+    def _create_saver(self, vars_):
+        return tf.train.Saver(vars_)
+
     def _nested_getattr(self, attr):
         #getattr built-in extended with capability of handling nested attributes
         return functools.reduce(getattr, attr.split('.'), self)
@@ -194,6 +204,29 @@ class SSD:
     def _init_vars(self, vars_=None):
         self.sess.run(tf.variables_initializer(vars_))
 
+    def save_model(self, path=None, sess=None, verbose=False):
+        save_dir = path or self.model_path
+        os.makedirs(save_dir, exist_ok=True)
+        self.saver.save(sess or self.sess,
+                        os.path.join(save_dir, 'model.ckpt'))
+        if verbose:
+            print('\nFollowing vars have been saved to {}:'.format(save_dir))
+            for v in self.saver._var_list:
+                print('{}.'.format(v.name))
+
+    def load_model(self, path=None, sess=None, verbose=False):
+        if path is None:
+            ckpt = tf.train.get_checkpoint_state(self.model_path)
+            if ckpt is None:
+                raise FileNotFoundError('Can`t load a model. '\
+                'Checkpoint does not exist.')    
+        restore_path = path or ckpt.model_checkpoint_path
+        print('\nFollowing vars have been restored from {}:'.format(restore_path))
+        self.saver.restore(sess or self.sess, restore_path)
+        if verbose:
+            for v in self.saver._var_list:
+                print('{}'.format(v.name))
+
     def confidences_and_corrections(self, feed_dict):
 
         fetches = [tf.nn.softmax(self.predicted_labels), self.predicted_offsets]
@@ -201,7 +234,7 @@ class SSD:
         return confidences, corrections
 
     def train(self, loader, overlap_threshold, neg_pos_ratio,
-              batch_size, learning_rate, n_iter, test_freq):
+              batch_size, learning_rate, n_iter, test_freq, save_freq):
 
         default_boxes = boxes.get_default_boxes(self.out_shapes, self.box_ratios)
 
@@ -227,6 +260,9 @@ class SSD:
             _, class_loss, loc_loss = self.sess.run(fetches, feed_dict)
             print('Iteration {}, Classificaion loss: {}, localization loss: {}'.format(
                                                         iteration, class_loss, loc_loss))
+
+            if iteration % save_freq == 0:
+                self.save_model(verbose=True)
 
             if iteration % test_freq == 0:
                 test_batch = loader.new_test_batch(1)
