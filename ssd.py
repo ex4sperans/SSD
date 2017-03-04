@@ -8,6 +8,7 @@ from tensorflow.contrib import slim
 from vgg.vgg import VGG_16
 import misc
 import preprocessing
+import postprocessing
 
 class SSD:
 
@@ -202,9 +203,25 @@ class SSD:
                          self.images: images,
                          self.learning_rate: learning_rate}
 
-            confidences = self.sess.run(
-                                        tf.nn.softmax(self.predicted_labels),
+            confidences, corrections = self.sess.run(
+                                        [tf.nn.softmax(self.predicted_labels),
+                                        self.predicted_offsets],
                                         feed_dict)
+
+            if iteration % 10 == 0:
+                for confidences_, corrections_, image_annotation_pair in zip(
+                                                                             confidences,
+                                                                             corrections,
+                                                                             batch):
+
+                    image, annotation = image_annotation_pair
+                    file_name = annotation['file_name']
+                    postprocessing.draw_top_boxes(
+                        image, confidences_, corrections_, 
+                        default_boxes, overlap_threshold, 'predictions', 
+                        '{iteration} {name}'.format(name=file_name, iteration=iteration),
+                        model=self)
+
             positives, negatives = preprocessing.positives_and_negatives(
                             confidences, labels, self, neg_pos_ratio)
 
