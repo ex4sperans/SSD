@@ -45,6 +45,8 @@ class SSD:
 
     def _create_feedforward_convo(self):
 
+        #for batch norm
+        self.is_training = tf.placeholder(dtype=tf.bool)
         layer = self._nested_getattr(self.first_layer)
 
         with slim.arg_scope([slim.conv2d],
@@ -101,7 +103,8 @@ class SSD:
                                     depth,
                                     params['kernel_size'],
                                     params['stride'],
-                                    scope=name)  
+                                    scope=name,
+                                    activation_fn=None)  
 
                 setattr(self, name, layer)
                 print('{name} with shape {shape}'.format(
@@ -238,7 +241,7 @@ class SSD:
 
         default_boxes = boxes.get_default_boxes(self.out_shapes, self.box_ratios)
 
-        for iteration in range(n_iter):
+        for iteration in range(1, n_iter):
             train_batch = loader.new_train_batch(batch_size)
             images, offsets, labels = preprocessing.get_feed(
                             train_batch, self, default_boxes, overlap_threshold)
@@ -246,7 +249,8 @@ class SSD:
                          self.offsets: offsets,
                          self.labels: labels,
                          self.images: images,
-                         self.learning_rate: learning_rate}
+                         self.learning_rate: learning_rate,
+                         self.is_training: False}
 
             confidences, corrections = self.confidences_and_corrections(feed_dict)
             positives, negatives = preprocessing.positives_and_negatives(
@@ -255,6 +259,7 @@ class SSD:
             #add positives and negatives to feed dict
             feed_dict[self.positives] = positives
             feed_dict[self.negatives] = negatives
+            feed_dict[self.is_training] = True
 
             fetches = [self.train_step, self.classification_loss, self.localization_loss]
             _, class_loss, loc_loss = self.sess.run(fetches, feed_dict)
@@ -262,7 +267,7 @@ class SSD:
                                                         iteration, class_loss, loc_loss))
 
             if iteration % save_freq == 0:
-                self.save_model(verbose=True)
+                self.save_model()
 
             if iteration % test_freq == 0:
                 test_batch = loader.new_test_batch(1)
@@ -271,7 +276,8 @@ class SSD:
                 feed_dict = {
                              self.offsets: offsets,
                              self.labels: labels,
-                             self.images: images}
+                             self.images: images,
+                             self.is_training: False}
 
                 confidences, corrections = self.confidences_and_corrections(feed_dict)
         
