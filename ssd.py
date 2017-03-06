@@ -170,7 +170,7 @@ class SSD:
         self.l2_loss = tf.add_n(slim.losses.get_regularization_losses())
 
         #average over minibatch
-        loss = tf.reduce_mean(classification_loss + localization_loss) + l2_loss
+        loss = tf.reduce_mean(classification_loss + localization_loss) + self.l2_loss
         return loss
 
     def _create_optimizer(self, loss):
@@ -258,49 +258,80 @@ class SSD:
 
         for iteration in range(1, n_iter):
             train_batch = loader.new_train_batch(batch_size)
-            images, offsets, labels = preprocessing.get_feed(
-                            train_batch, self, default_boxes, overlap_threshold)
-            feed_dict = {
-                         self.offsets: offsets,
-                         self.labels: labels,
-                         self.images: images,
-                         self.learning_rate: learning_rate,
-                         self.is_training: False}
+            self.train_iteration(
+                                 train_batch=train_batch,
+                                 default_boxes=default_boxes,
+                                 overlap_threshold=overlap_threshold,
+                                 iteration=iteration,
+                                 neg_pos_ratio=neg_pos_ratio,
+                                 learning_rate=learning_rate)
 
-            confidences, corrections = self.confidences_and_corrections(feed_dict)
-            positives, negatives = preprocessing.positives_and_negatives(
-                            confidences, labels, self, neg_pos_ratio)
-
-            # add positives and negatives to feed dict
-            feed_dict[self.positives] = positives
-            feed_dict[self.negatives] = negatives
-            feed_dict[self.is_training] = True
-
-            fetches = [self.train_step, self.classification_loss, self.localization_loss]
-            _, class_loss, loc_loss = self.sess.run(fetches, feed_dict)
-            print('Iteration {}, Classificaion loss: {}, localization loss: {}'.format(
-                                                        iteration, class_loss, loc_loss))
             if iteration % save_freq == 0:
                 self.save_model()
 
             if iteration % test_freq == 0:
-                test_batch = loader.new_test_batch(1)
-                images, offsets, labels = preprocessing.get_feed(
-                            test_batch, self, default_boxes, overlap_threshold)
-                feed_dict = {
-                             self.offsets: offsets,
-                             self.labels: labels,
-                             self.images: images,
-                             self.is_training: False}
+                test_batch = loader.new_train_batch(1)
+                self.test_iteration(
+                                    test_batch=test_batch,
+                                    default_boxes=default_boxes,
+                                    overlap_threshold=overlap_threshold,
+                                    iteration=iteration,
+                                    save_path='predictions/train')                                    
 
-                confidences, corrections = self.confidences_and_corrections(feed_dict)
-        
-                postprocessing.draw_top_boxes(
-                                              batch=test_batch,
-                                              confidences=confidences,
-                                              corrections=corrections,
-                                              default_boxes=default_boxes,
-                                              threshold=overlap_threshold,
-                                              save_path='predictions',
-                                              iteration=iteration,
-                                              model=self)
+                test_batch = loader.new_test_batch(1)
+                self.test_iteration(
+                                    test_batch=test_batch,
+                                    default_boxes=default_boxes,
+                                    overlap_threshold=overlap_threshold,
+                                    iteration=iteration,
+                                    save_path='predictions/test')
+
+    def train_iteration(self, train_batch, default_boxes, overlap_threshold,
+                        iteration, neg_pos_ratio, learning_rate):
+    
+        images, offsets, labels = preprocessing.get_feed(
+                            train_batch, self, default_boxes, overlap_threshold)
+        feed_dict = {
+                     self.offsets: offsets,
+                     self.labels: labels,
+                     self.images: images,
+                     self.learning_rate: learning_rate,
+                     self.is_training: False}
+
+        confidences, corrections = self.confidences_and_corrections(feed_dict)
+        positives, negatives = preprocessing.positives_and_negatives(
+                        confidences, labels, self, neg_pos_ratio)
+
+        # add positives and negatives to feed dict
+        feed_dict[self.positives] = positives
+        feed_dict[self.negatives] = negatives
+        feed_dict[self.is_training] = True
+
+        fetches = [self.train_step, self.classification_loss, self.localization_loss]
+        _, class_loss, loc_loss = self.sess.run(fetches, feed_dict)
+        print('Iteration {}, Classificaion loss: {}, localization loss: {}'.format(
+                                                        iteration, class_loss, loc_loss))
+
+    def test_iteration(self, test_batch, default_boxes, 
+                       overlap_threshold, iteration, save_path):
+
+        images, offsets, labels = preprocessing.get_feed(
+                            test_batch, self, default_boxes, overlap_threshold)
+        feed_dict = {
+                     self.offsets: offsets,
+                     self.labels: labels,
+                     self.images: images,
+                     self.is_training: False}
+
+        confidences, corrections = self.confidences_and_corrections(feed_dict)
+
+        postprocessing.draw_top_boxes(
+                                      batch=test_batch,
+                                      confidences=confidences,
+                                      corrections=corrections,
+                                      default_boxes=default_boxes,
+                                      threshold=overlap_threshold,
+                                      save_path=save_path,
+                                      iteration=iteration,
+                                      model=self)
+
