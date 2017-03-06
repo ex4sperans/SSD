@@ -70,6 +70,14 @@ class SSD:
                                             params['kernel_size'],
                                             padding=params['padding'],
                                             scope=name) 
+
+                layer = slim.batch_norm(
+                                        layer,
+                                        scale=True,
+                                        is_training=self.is_training,
+                                        updates_collections=None,
+                                        scope='batch_norm_{}'.format(name))
+
                 setattr(self, name, layer)
                 print('{name} with shape {shape}'.format(
                         name=name, shape=layer.get_shape()))
@@ -89,10 +97,10 @@ class SSD:
 
                 parent_layer = self._nested_getattr(params['parent'])
 
-                #number of layer boxes times number of classes + 1 (background)
-                #plus number of layer boxes times 4 (box correction)
-                #layer boxes is the number of boxes per pixel of CNN feature map
-                #usually is set to 2, 3 or 6
+                # number of layer boxes times number of classes + 1 (background)
+                # plus number of layer boxes times 4 (box correction)
+                # layer boxes is the number of boxes per pixel of CNN feature map
+                # usually is set to 2, 3 or 6
                 layer_boxes = len(params['box_ratios'])
                 self.box_ratios.append(params['box_ratios'])
                 depth_per_box = self.n_classes + 1 + 4
@@ -103,8 +111,14 @@ class SSD:
                                     depth,
                                     params['kernel_size'],
                                     params['stride'],
-                                    scope=name,
-                                    activation_fn=None)  
+                                    scope=name)  
+
+                layer = slim.batch_norm(
+                                        layer,
+                                        scale=True,
+                                        is_training=self.is_training,
+                                        updates_collections=None,
+                                        scope='batch_norm_{}'.format(name))
 
                 setattr(self, name, layer)
                 print('{name} with shape {shape}'.format(
@@ -115,8 +129,8 @@ class SSD:
                 self.out_shapes.append(tuple(layer.get_shape().as_list()))
 
             stacked_out_layers = tf.concat(1, out_layers)
-            #slice stacked output along third dimension 
-            #to obtain labels and offsets 
+            # slice stacked output along third dimension 
+            # to obtain labels and offsets 
             self.total_boxes = stacked_out_layers.get_shape().as_list()[1]
             self.predicted_labels = tf.slice(stacked_out_layers, [0, 0, 0], [-1, -1, self.n_classes + 1])
             self.predicted_offsets = tf.slice(stacked_out_layers, [0, 0, self.n_classes + 1], [-1, -1, 4]) 
@@ -153,9 +167,10 @@ class SSD:
 
         self.classification_loss = tf.reduce_mean(classification_loss)
         self.localization_loss = tf.reduce_mean(localization_loss)
+        self.l2_loss = tf.add_n(slim.losses.get_regularization_losses())
 
         #average over minibatch
-        loss = tf.reduce_mean(classification_loss + localization_loss)
+        loss = tf.reduce_mean(classification_loss + localization_loss) + l2_loss
         return loss
 
     def _create_optimizer(self, loss):
@@ -256,7 +271,7 @@ class SSD:
             positives, negatives = preprocessing.positives_and_negatives(
                             confidences, labels, self, neg_pos_ratio)
 
-            #add positives and negatives to feed dict
+            # add positives and negatives to feed dict
             feed_dict[self.positives] = positives
             feed_dict[self.negatives] = negatives
             feed_dict[self.is_training] = True
@@ -265,7 +280,6 @@ class SSD:
             _, class_loss, loc_loss = self.sess.run(fetches, feed_dict)
             print('Iteration {}, Classificaion loss: {}, localization loss: {}'.format(
                                                         iteration, class_loss, loc_loss))
-
             if iteration % save_freq == 0:
                 self.save_model()
 
