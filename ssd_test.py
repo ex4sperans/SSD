@@ -6,11 +6,11 @@ neg_pos_ratio = 3
 overlap_threshold = 0.5
 batch_size = 4
 n_iter = 100000
-learning_rate = 0.001
-test_freq = 50
+learning_rate = 0.0001
+test_freq = 1
 save_freq = 1
 
-model = ssd.SSD(resume=True)
+model = ssd.SSD(resume=False)
 loader = voc_loader.VOCLoader(
                               preprocessing=('resize', model.input_shape),
                               normalization='divide_255')
