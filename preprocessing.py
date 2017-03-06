@@ -62,7 +62,7 @@ def get_feed(batch, model, default_boxes, threshold):
                                               class_names=model.class_names))
                 for matches in matches_batch]
 
-    #split feed batch into offsets and labels batches
+    # split feed batch into offsets and labels batches
     offsets, labels = list(zip(*[list(zip(*f)) for f in feed]))
     return images, list(offsets), list(labels)
 
@@ -70,27 +70,21 @@ def positives_and_negatives(confidences, labels, model, neg_pos_ratio):
 
     background_class = len(model.class_names)
     positives = np.not_equal(labels, background_class).astype(np.float32)
-    #calculate the number of matched boxes for each element of batch
+    # calculate the number of matched boxes for each element of batch
     n_positives = np.sum(positives, 1)
     n_negatives = n_positives*neg_pos_ratio
-    #choose top confidence for each default box
+    # choose top confidence for each default box
     top_confidences = np.amax(confidences, 2)
-    #sort confidences and take the highest among all default boxes
-    #boolean mask is applied to skip confidences with positive indicies
-    sorted_confidences = np.argsort(top_confidences*np.logical_not(positives), 1)
-    #reverse the sequence as argsort produce indidices in ascending order
+    # sort confidences and take the highest among all default boxes
+    # boolean mask is applied to skip confidences with positive indicies
+    sorted_confidences = np.sort(top_confidences*np.logical_not(positives), 1)
+    # reverse the sequence as sort produce indicies in the ascending order
     sorted_confidences = np.flip(sorted_confidences, 1)
-
-    #TODO: optimize construction of negative array
-    negative_idx = [np.take(idx, np.arange(n, dtype=np.int32)) 
-                    for idx, n in zip(sorted_confidences, n_negatives)]
-    negatives = np.zeros_like(positives)
-
-    def set_negatives(arr, idx):
-        arr[idx] = 1
-        return arr
-
-    negatives = np.vstack([set_negatives(row, idx) 
-                           for row, idx in zip(negatives, negative_idx)])
+    rows = np.arange(len(sorted_confidences), dtype=np.int32)
+    columns = n_negatives.astype(np.int32) 
+    threshold_confidences = np.expand_dims(sorted_confidences[rows, columns], 1)
+    # choose negatives to be all boxes with confidence higher than threshold value
+    negatives = (top_confidences*np.logical_not(positives) > threshold_confidences)
+    negatives = negatives.astype(np.float32)
 
     return positives, negatives
