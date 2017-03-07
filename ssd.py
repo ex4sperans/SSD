@@ -71,13 +71,6 @@ class SSD:
                                             padding=params['padding'],
                                             scope=name) 
 
-                layer = slim.batch_norm(
-                                        layer,
-                                        scale=True,
-                                        is_training=self.is_training,
-                                        updates_collections=None,
-                                        scope='batch_norm_{}'.format(name))
-
                 setattr(self, name, layer)
                 print('{name} with shape {shape}'.format(
                         name=name, shape=layer.get_shape()))
@@ -112,13 +105,6 @@ class SSD:
                                     params['kernel_size'],
                                     params['stride'],
                                     scope=name)  
-
-                layer = slim.batch_norm(
-                                        layer,
-                                        scale=True,
-                                        is_training=self.is_training,
-                                        updates_collections=None,
-                                        scope='batch_norm_{}'.format(name))
 
                 setattr(self, name, layer)
                 print('{name} with shape {shape}'.format(
@@ -170,7 +156,7 @@ class SSD:
         self.l2_loss = tf.add_n(slim.losses.get_regularization_losses())
 
         #average over minibatch
-        loss = tf.reduce_mean(classification_loss + localization_loss) + self.l2_loss
+        loss = self.classification_loss + self.localization_loss + self.l2_loss
         return loss
 
     def _create_optimizer(self, loss):
