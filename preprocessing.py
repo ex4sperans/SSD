@@ -49,13 +49,18 @@ def process_matches(matches, default_boxes, class_names):
 
 def get_feed(batch, model, default_boxes, threshold):
     images = [image for image, annotation in batch]
-    matches_batch = [match_boxes(
-                                annotations=annotation['objects'],
-                                image=image,
-                                default_boxes=default_boxes,
-                                out_shapes=model.out_shapes,
-                                threshold=threshold)[0]
-                        for image, annotation in batch]
+
+    matches_batch = []
+    for image, annotation in batch:
+        matches, top_match = match_boxes(
+                                         annotations=annotation['objects'],
+                                         image=image,
+                                         default_boxes=default_boxes,
+                                         out_shapes=model.out_shapes,
+                                         threshold=threshold)
+        matches = matches if matches else top_match
+        matches_batch.append(matches)
+        
     feed = [misc.flatten_list(process_matches(
                                               matches=matches,
                                               default_boxes=default_boxes,
@@ -68,7 +73,7 @@ def get_feed(batch, model, default_boxes, threshold):
 
 def positives_and_negatives(confidences, labels, model, neg_pos_ratio):
 
-    background_class = len(model.class_names)
+    background_class = model.n_classes
     positives = np.not_equal(labels, background_class).astype(np.float32)
     # calculate the number of matched boxes for each element of batch
     n_positives = np.sum(positives, 1)
@@ -78,7 +83,7 @@ def positives_and_negatives(confidences, labels, model, neg_pos_ratio):
     # sort confidences and take the highest among all default boxes
     # boolean mask is applied to skip confidences with positive indicies
     sorted_confidences = np.sort(top_confidences*np.logical_not(positives), 1)
-    # reverse the sequence as sort produce indicies in the ascending order
+    # reverse the sequence as sort produces indicies in the ascending order
     sorted_confidences = np.flip(sorted_confidences, 1)
     rows = np.arange(len(sorted_confidences), dtype=np.int32)
     columns = n_negatives.astype(np.int32) 

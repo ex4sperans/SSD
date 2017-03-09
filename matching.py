@@ -6,7 +6,7 @@ import misc
 def match_boxes(annotations, image, default_boxes, out_shapes, threshold):
 
     matches = list()
-    top_match = {'overlap': 0, 'bbox': None}
+    top_match = {'overlap': 0, 'match': (None, None, None)}
     image_height, image_width = boxes.height_and_width(image.shape)
     #default boxes is assumed to be a 4d nested list
     for class_name, ground_truth_box in annotations:
@@ -28,6 +28,6 @@ def match_boxes(annotations, image, default_boxes, out_shapes, threshold):
                             matches.append((default_box, (scaled_ground_truth_box, class_name)))
                         if overlap > top_match['overlap']:
                             top_match['overlap'] = overlap
-                            top_match['bbox'] = default_box
+                            top_match['match'] = (default_box, (scaled_ground_truth_box, class_name))
 
-    return matches, top_match    
+    return matches, [top_match['match']]    
