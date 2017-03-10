@@ -8,17 +8,17 @@ nms_threshold = 0.3
 batch_size = 4
 n_iter = 100000
 test_freq = 1
-save_freq = 10
+save_freq = 1
 
 def learning_rate_schedule(iteration):
 
     if iteration < 100:
         learning_rate = 1e-4
-    if iteration == 20000:
+    elif iteration < 20000:
         learning_rate = 1e-3
-    if iteration == 30000:
+    elif iteration < 30000:
         learning_rate = 1e-4
-    if iteration == 40000:
+    else:
         learning_rate = 1e-5
     return learning_rate
 
