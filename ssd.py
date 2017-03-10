@@ -28,18 +28,22 @@ class SSD:
         self.vgg_16 = VGG_16(self.input_shape)
         self._create_graph()
         self._create_placeholders()
+        self.step()
+        self.loss = self._create_loss()
+        self.optimizer_vars = self._create_optimizer(self.loss)
+
         self.model_vars = self._get_vars_by_scope(self.scope)
-        self.saver = self._create_saver(self.model_vars + self.vgg_16.model_vars)
+        self.saver = self._create_saver(
+            self.model_vars + self.vgg_16.model_vars + self.optimizer_vars)
 
         if resume:
             self.load_model(verbose=True)
         else:
             self._init_vars(self.model_vars)
             self._init_vars(self.vgg_16.model_vars)
+            self._init_vars(self.optimizer_vars)
             self.vgg_16.load_convo_weights_from_npz(sess=self.sess)
 
-        self.loss = self._create_loss()
-        self._create_optimizer(self.loss)
         print('Number of parameters for {scope}: {n:.1f}M'.format(
             scope=self.scope, n=self._number_of_parameters(self.model_vars)/1e6))
 
@@ -164,11 +168,24 @@ class SSD:
                             learning_rate=self.learning_rate)
             grads_and_vars = optimizer.compute_gradients(loss)
             self.train_step = optimizer.apply_gradients(grads_and_vars)
-        self.optimizer_vars = self._get_vars_by_scope('Optimizer_' + self.scope)
-        self._init_vars(self.optimizer_vars)
+        optimizer_vars = self._get_vars_by_scope('Optimizer_' + self.scope)
+        return optimizer_vars
 
     def _create_saver(self, vars_):
-        return tf.train.Saver(vars_)
+        return tf.train.Saver(vars_)        
+
+    def step(self):
+        if not hasattr(self, '_step'):
+            with tf.variable_scope(self.scope):
+                self._step = tf.get_variable(name='step', 
+                    initializer=tf.ones(shape=(), dtype=tf.int32),
+                    trainable=False)
+            self.sess.run(tf.variables_initializer([self._step]))
+        return self.sess.run(self._step)
+
+    def update_step(self):
+        assign_op = self._step.assign(self.step() + 1)
+        self.sess.run(assign_op)
 
     def _nested_getattr(self, attr):
         #getattr built-in extended with capability of handling nested attributes
@@ -230,6 +247,7 @@ class SSD:
             for v in self.saver._var_list:
                 print('{}'.format(v.name))
 
+
     def confidences_and_corrections(self, feed_dict):
 
         fetches = [self.confidences, self.predicted_offsets]
@@ -241,7 +259,7 @@ class SSD:
 
         default_boxes = boxes.get_default_boxes(self.out_shapes, self.box_ratios)
 
-        for iteration in range(1, n_iter):
+        for iteration in range(self.step(), n_iter):
             learning_rate = learning_rate_schedule(iteration)
             train_batch = loader.new_train_batch(batch_size)
             self.train_iteration(
@@ -253,7 +271,7 @@ class SSD:
                                  learning_rate=learning_rate)
 
             if iteration % save_freq == 0:
-                self.save_model()
+                self.save_model(verbose=True)
 
             if iteration % test_freq == 0:
                 test_batch = loader.new_train_batch(1)
@@ -297,6 +315,7 @@ class SSD:
         _, class_loss, loc_loss = self.sess.run(fetches, feed_dict)
         print('Iteration {}, Classificaion loss: {}, localization loss: {}'.format(
                                                         iteration, class_loss, loc_loss))
+        self.update_step()
 
     def test_iteration(self, test_batch, default_boxes, 
                        overlap_threshold, iteration, save_path):
