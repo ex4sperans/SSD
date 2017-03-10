@@ -70,7 +70,6 @@ class SSD:
                                             params['kernel_size'],
                                             padding=params['padding'],
                                             scope=name) 
-
                 setattr(self, name, layer)
                 print('{name} with shape {shape}'.format(
                         name=name, shape=layer.get_shape()))
@@ -120,6 +119,7 @@ class SSD:
             self.total_boxes = stacked_out_layers.get_shape().as_list()[1]
             self.predicted_labels = tf.slice(stacked_out_layers, [0, 0, 0], [-1, -1, self.n_classes + 1])
             self.predicted_offsets = tf.slice(stacked_out_layers, [0, 0, self.n_classes + 1], [-1, -1, 4]) 
+            self.confidences = tf.nn.softmax(self.predicted_labels)
             print('\nPredicted labels shape: {shape}'.format(shape=self.predicted_labels.get_shape()))
             print('Predicted offsets shape: {shape}'.format(shape=self.predicted_offsets.get_shape()))
 
@@ -153,10 +153,9 @@ class SSD:
 
         self.classification_loss = tf.reduce_mean(classification_loss)
         self.localization_loss = tf.reduce_mean(localization_loss)
-        self.l2_loss = tf.add_n(slim.losses.get_regularization_losses())
 
         #average over minibatch
-        loss = self.classification_loss + self.localization_loss + self.l2_loss
+        loss = self.classification_loss + self.localization_loss
         return loss
 
     def _create_optimizer(self, loss):
@@ -233,16 +232,17 @@ class SSD:
 
     def confidences_and_corrections(self, feed_dict):
 
-        fetches = [tf.nn.softmax(self.predicted_labels), self.predicted_offsets]
+        fetches = [self.confidences, self.predicted_offsets]
         confidences, corrections = self.sess.run(fetches, feed_dict)
         return confidences, corrections
 
-    def train(self, loader, overlap_threshold, neg_pos_ratio,
-              batch_size, learning_rate, n_iter, test_freq, save_freq):
+    def train(self, loader, overlap_threshold, nms_threshold, neg_pos_ratio,
+              batch_size, learning_rate_schedule, n_iter, test_freq, save_freq):
 
         default_boxes = boxes.get_default_boxes(self.out_shapes, self.box_ratios)
 
         for iteration in range(1, n_iter):
+            learning_rate = learning_rate_schedule(iteration)
             train_batch = loader.new_train_batch(batch_size)
             self.train_iteration(
                                  train_batch=train_batch,
@@ -260,7 +260,7 @@ class SSD:
                 self.test_iteration(
                                     test_batch=test_batch,
                                     default_boxes=default_boxes,
-                                    overlap_threshold=overlap_threshold,
+                                    overlap_threshold=nms_threshold,
                                     iteration=iteration,
                                     save_path='predictions/train')                                    
 
@@ -268,7 +268,7 @@ class SSD:
                 self.test_iteration(
                                     test_batch=test_batch,
                                     default_boxes=default_boxes,
-                                    overlap_threshold=overlap_threshold,
+                                    overlap_threshold=nms_threshold,
                                     iteration=iteration,
                                     save_path='predictions/test')
 
