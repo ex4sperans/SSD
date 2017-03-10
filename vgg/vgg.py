@@ -15,6 +15,7 @@ class VGG_16:
         self.input_shape = input_shape
         self.convo_architecture = model_params['convo_architecture']
         self.scope = model_params['scope']
+        self.blue_mean, self.green_mean, self.red_mean = model_params['mean']
 
         self._create_placeholders()
         self._create_graph()
@@ -53,10 +54,22 @@ class VGG_16:
                 setattr(self, name, layer)
                 print('{name} with shape {shape}'.format(name=name, shape=layer.get_shape()))
 
+    def _preprocess(self, inputs):
+        #inputs assumed to be a RGB image
+        rgb_scaled = inputs * 255.0
+        subtracted = rgb_scaled - tf.constant([
+                                               self.red_mean,
+                                               self.green_mean,
+                                               self.blue_mean],
+                                               dtype=tf.float32,
+                                               shape=[1, 1, 1, 3])
+        return subtracted
+
     def _create_graph(self):
         with tf.variable_scope(self.scope):
             with tf.variable_scope('convo_layers'):
-                self.convo_output = self._create_convo_layers(self.inputs)
+                inputs = self._preprocess(self.inputs)
+                self.convo_output = self._create_convo_layers(inputs)
 
     def load_convo_weights_from_npz(self, model_path='vgg/vgg16_weights.npz', sess=None):
 
