@@ -52,13 +52,12 @@ def get_feed(batch, model, default_boxes, threshold):
 
     matches_batch = []
     for image, annotation in batch:
-        matches, top_match = match_boxes(
-                                         annotations=annotation['objects'],
-                                         image=image,
-                                         default_boxes=default_boxes,
-                                         out_shapes=model.out_shapes,
-                                         threshold=threshold)
-        matches = matches if matches else top_match
+        matches = match_boxes(
+                              annotations=annotation['objects'],
+                              image=image,
+                              default_boxes=default_boxes,
+                              out_shapes=model.out_shapes,
+                              threshold=threshold)
         matches_batch.append(matches)
         
     feed = [misc.flatten_list(process_matches(

@@ -7,6 +7,16 @@ import matplotlib.pyplot as plt
 
 import misc
 
+"""There are two box classes: BoundBox and CenterBox. BoundBox is defined by
+the coordinates of the top left corner and the bottom right corner. CenterBox is 
+defined by the box center, box width and box height. Model is trained in CenterBox 
+coordinates (more precisely, with offsets, but still in CenterBox coordinates), 
+while the vast majority of post- and pre- processing is performed using BoundBox.
+Two functions defined below perform conversion between those two boxes types.
+Both box types are namedtuple`s, therefore they have explicit and clear names for
+their fields.
+"""
+
 BoundBox = namedtuple('BoundBox', ['x_min', 'y_min', 'x_max', 'y_max'])
 CenterBox = namedtuple('CenterBox', ['center_x', 'center_y', 'width', 'height'])
 
@@ -61,7 +71,7 @@ def plot_default_boxes(boxes, save_path, name):
     plt.close()
 
 def box_scale(k, m):
-    s_min = 0.2
+    s_min = 0.1
     s_max = 0.9
     #equation 4 from paper
     s_k = s_min + (s_max - s_min) * (k - 1.0) / (m - 1.0) 
@@ -173,13 +183,13 @@ def plot_with_bboxes(image, save_path, file_name,
         xmin, ymin, xmax, ymax = bbox 
         bx = (xmin, xmax, xmax, xmin, xmin)
         by = (ymin, ymin, ymax, ymax, ymin)
-        ax.plot(bx, by, c='b', lw=2)
+        ax.plot(bx, by, c='b', lw=1)
 
     for gtbox in ground_truth_boxes:
         xmin, ymin, xmax, ymax = gtbox 
         bx = (xmin, xmax, xmax, xmin, xmin)
         by = (ymin, ymin, ymax, ymax, ymin)
-        ax.plot(bx, by, c='g', lw=2)
+        ax.plot(bx, by, c='g', lw=1.5)
         
     ax.set_axis_off()    
     os.makedirs(save_path, exist_ok=True)

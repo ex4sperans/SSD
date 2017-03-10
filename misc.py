@@ -4,7 +4,7 @@ import os
 import fnmatch
 
 from scipy.ndimage import imread
-from scipy.misc import imresize
+from skimage.transform import resize as imresize
 
 
 def flatten_list(nested_list):
@@ -32,7 +32,7 @@ def load_json(file_path):
         return data
 
 def resize(image, new_shape):
-        return imresize(image, new_shape) 
+        return imresize(image, new_shape, preserve_range=True) 
 
 def find_files(path, file_type, sort=True):
     files = list()
