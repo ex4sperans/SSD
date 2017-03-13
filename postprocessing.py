@@ -48,32 +48,32 @@ def non_maximum_supression(confidences, default_boxes, corrections,
         if label != background_class:
             correction = boxes.CenterBox(*correction)
             non_background_boxes.append(
-                (apply_log_offsets(default_box, correction), label))
-        if confidence < 0.7:
+                (apply_log_offsets(default_box, correction), label, confidence))
+        if confidence < 0.1:
             break
 
     choices = []
 
-    for corrected_box, label in non_background_boxes:
+    for corrected_box, label, confidence in non_background_boxes:
         add = True
-        for selected_corrected_box, selected_label in choices:
+        for selected_corrected_box, selected_label, _ in choices:
             overlap = boxes.jaccard_overlap(corrected_box, selected_corrected_box)
             if label == selected_label and overlap > threshold:
                 add = False
                 break
         if add:
-            choices.append((corrected_box, label))
+            choices.append((corrected_box, label, confidence))
         if len(choices) > 20:
             break
 
     if choices:
-        bboxes, labels = list(zip(*choices))
+        bboxes, labels, confidences = list(zip(*choices))
         bboxes = list(boxes.clip_box(box) for box in bboxes)
         bboxes = list(boxes.recover_box(box, height, width) for box in bboxes)
         labels = list(class_names[l] for l in labels)
     else:
-        bboxes, labels = [], []
-    return bboxes, labels
+        bboxes, labels, confidences = [], [], []
+    return bboxes, labels, confidences
 
 
 def draw_top_boxes(batch, confidences, corrections, default_boxes,
@@ -91,7 +91,7 @@ def draw_top_boxes(batch, confidences, corrections, default_boxes,
         image, annotation = image_annotation_pair
         file_name = annotation['file_name']
 
-        bboxes, labels = non_maximum_supression(
+        bboxes, labels, confidences = non_maximum_supression(
                                                 confidences=box_confidences,
                                                 default_boxes=default_boxes,
                                                 corrections=box_corrections,
@@ -104,4 +104,5 @@ def draw_top_boxes(batch, confidences, corrections, default_boxes,
                                     save_path=save_path,
                                     file_name='iteration{} {}'.format(iteration, file_name),
                                     bboxes=bboxes,
-                                    labels=labels)
+                                    labels=labels,
+                                    confidences=confidences)

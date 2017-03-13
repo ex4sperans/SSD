@@ -197,7 +197,7 @@ def plot_with_bboxes(image, save_path, file_name,
     plt.close()
 
 def plot_predicted_bboxes(image, save_path, file_name, 
-                          bboxes, labels):
+                          bboxes, labels, confidences):
 
     if len(bboxes) != len(labels):
         raise ValueError('Each label should correspond to bbox.')
@@ -206,22 +206,21 @@ def plot_predicted_bboxes(image, save_path, file_name,
     ax = fig.add_subplot(111)
     ax.imshow(image)
 
-    for box, label in zip(bboxes, labels):
+    for box, label, confidence in zip(bboxes, labels, confidences):
         box = centerbox_to_boundbox(box)
         xmin, ymin, xmax, ymax = box 
         bx = (xmin, xmax, xmax, xmin, xmin)
         by = (ymin, ymin, ymax, ymax, ymin)
         ax.plot(bx, by, c='yellow', lw=1)
         bbox_props = dict(boxstyle='square,pad=0.3', fc='yellow', ec='yellow', lw=1)
-        ax.text(xmin, ymin, label, ha='center', va='center',
+        text = '{} {:.2f}'.format(label, confidence)
+        ax.text(xmin, ymin, text, ha='center', va='center',
                  size=7, color='black', bbox=bbox_props)
     
     ax.set_axis_off()    
     os.makedirs(save_path, exist_ok=True)
     fig.savefig(os.path.join(save_path, file_name))
     plt.close()
-
-
 
     
 if __name__ == '__main__':
