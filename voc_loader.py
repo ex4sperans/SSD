@@ -7,11 +7,12 @@ import numpy as np
 
 import boxes
 import misc
+import augmentation_ops
 
 class VOCLoader:
 
     def __init__(self, dataset_params_path='voc_dataset_params.json',
-        preprocessing=None, normalization=None):
+        preprocessing=None, normalization=None, augmentation=None):
 
         self.dataset_params = misc.load_json(dataset_params_path)
         self.train_images = misc.find_files(
@@ -28,6 +29,7 @@ class VOCLoader:
 
         self._set_preprocessing_fn(preprocessing)
         self._set_normalization_fn(normalization)
+        self._set_augmentation_fn(augmentation)
 
         print('\nCreated loader for VOC dataset.')
         print('Loaded params from {path}'.format(path=dataset_params_path))
@@ -35,6 +37,7 @@ class VOCLoader:
         print('Size of test set: {size}'.format(size=len(self.test_set)))
         print('Preprocessing: {}'.format(preprocessing))
         print('Normalization: {}'.format(normalization))
+        print('Augmentation: {}'.format(augmentation))
         
     @staticmethod
     def parse_annotation(annotation_path):
@@ -48,8 +51,8 @@ class VOCLoader:
             annotation['objects'].append((obj.find('name').text, bbox))
         return annotation
 
-    def new_batch(self, batch_size, dataset):
-
+    def new_batch(self, batch_size, dataset, augment=False):
+    
         batch = random.sample(dataset, batch_size)
         batch = [(misc.load_image(image), VOCLoader.parse_annotation(annotation))
                 for image, annotation in batch]
@@ -60,20 +63,24 @@ class VOCLoader:
         if hasattr(self, '_normalize'):
             batch = [(self._normalize(image), annotation) for image, annotation in batch]
 
+        if hasattr(self, '_augment') and augment:
+            augmented_batch = [self._augment(image, annotation) for image, annotation in batch]            
+            batch.extend(augmented_batch)
+
         return batch
 
     def new_train_batch(self, batch_size):
-        return self.new_batch(batch_size, self.train_set)
+        return self.new_batch(batch_size, self.train_set, augment=True)
 
     def new_test_batch(self, batch_size):
         return self.new_batch(batch_size, self.test_set)
-
 
     def _set_preprocessing_fn(self, preprocessing):
         if isinstance(preprocessing, tuple):
             preprocessing_type, preprocessing_params = preprocessing
             if preprocessing_type == 'resize':
                 height, width = misc.height_and_width(preprocessing_params)
+
                 def _preprocess(image, annotation):
                     image_height, image_width = misc.height_and_width(image.shape)
                     image = misc.resize(image, preprocessing_params)
@@ -86,11 +93,35 @@ class VOCLoader:
                     annotation['objects'] = [(class_name, process_box(box))
                                             for class_name, box in annotation['objects']]
                     return image, annotation
+
                 self._preprocess = _preprocess
 
     def _set_normalization_fn(self, normalization):
         if isinstance(normalization, str):
             if normalization == 'divide_255':
+
                 def divide_255(image):
                     return image/255
+
                 self._normalize = divide_255
+
+    def _set_augmentation_fn(self, augmentation):
+
+        if isinstance(augmentation, list):
+            def augment(image, annotation):
+
+                augmented_image, augmented_annotation = image.copy(), annotation.copy()
+                if 'random_crop' in augmentation:
+                    new_image, new_annotation = augmentation_ops.random_crop(
+                                                augmented_image, augmented_annotation['objects'])
+                    if new_annotation:
+                        augmented_annotation['objects'] = new_annotation
+                        augmented_image = new_image
+
+                if 'random_flip' in augmentation:
+                    augmented_image, augmented_annotation['objects'] = augmentation_ops.random_flip(
+                                                augmented_image, augmented_annotation['objects'])
+                return augmented_image, augmented_annotation
+
+            self._augment = augment
+

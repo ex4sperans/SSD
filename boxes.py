@@ -86,13 +86,38 @@ def height_and_width(shape):
         raise ValueError('Could not infer height and'\
             ' width from shape {shape}.'.format(shape=shape))
 
-def clip_box(box, maxval=1, minval=0):
+def shift_box(box, shift_x, shift_y):
     box = centerbox_to_boundbox(box)
     box = BoundBox(
-                   x_min=max(box.x_min, minval),
-                   y_min=max(box.y_min, minval),
-                   x_max=min(box.x_max, maxval),
-                   y_max=min(box.y_max, maxval))
+                   x_min=box.x_min - shift_x,
+                   y_min=box.y_min - shift_y,
+                   x_max=box.x_max - shift_x,
+                   y_max=box.y_max - shift_y)
+    return box
+
+def hflip_box(box, height, width):
+    box = BoundBox(
+                   x_min=width - box.x_max,
+                   y_min=box.y_min,
+                   x_max=width - box.x_min,
+                   y_max=box.y_max)
+    return box
+
+def vflip_box(box, height, width):
+    box = BoundBox(
+                   x_min=box.x_min,
+                   y_min=height - box.y_max,
+                   x_max=box.x_max,
+                   y_max=height - box.y_min)
+    return box
+
+def clip_box(box, minval_x=0, minval_y=0, maxval_x=1, maxval_y=1):
+    box = centerbox_to_boundbox(box)
+    box = BoundBox(
+                   x_min=max(box.x_min, minval_x),
+                   y_min=max(box.y_min, minval_y),
+                   x_max=min(box.x_max, maxval_x),
+                   y_max=min(box.y_max, maxval_y))
     return boundbox_to_centerbox(box)
 
 def default_box(i, j, scale, box_ratio, width, height):
@@ -170,7 +195,6 @@ def recover_box(box, height, width):
 def resize_box(box, orig_height, orig_width, new_height, new_width):
     normalized_box = normalize_box(box, orig_height, orig_width)
     return recover_box(normalized_box, new_height, new_width) 
-
 
 def plot_with_bboxes(image, save_path, file_name, 
                     bboxes, ground_truth_boxes):
