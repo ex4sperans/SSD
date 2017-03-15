@@ -197,7 +197,7 @@ def plot_with_bboxes(image, save_path, file_name,
     plt.close()
 
 def plot_predicted_bboxes(image, save_path, file_name, 
-                          bboxes, labels, confidences):
+                          bboxes, labels, confidences, class_names):
 
     if len(bboxes) != len(labels):
         raise ValueError('Each label should correspond to bbox.')
@@ -206,16 +206,20 @@ def plot_predicted_bboxes(image, save_path, file_name,
     ax = fig.add_subplot(111)
     ax.imshow(image)
 
+    colors = list(matplotlib.cm.hsv(np.linspace(0, 1, len(class_names))))
+
     for box, label, confidence in zip(bboxes, labels, confidences):
         box = centerbox_to_boundbox(box)
         xmin, ymin, xmax, ymax = box 
         bx = (xmin, xmax, xmax, xmin, xmin)
         by = (ymin, ymin, ymax, ymax, ymin)
-        ax.plot(bx, by, c='yellow', lw=1)
-        bbox_props = dict(boxstyle='square,pad=0.3', fc='yellow', ec='yellow', lw=1)
+        color = colors[class_names.index(label)]
+        ax.plot(bx, by, c=color, lw=1.5)
+        bbox_props = dict(boxstyle='square,pad=0.3',
+                         fc=color, ec=color, lw=1)
         text = '{} {:.2f}'.format(label, confidence)
         ax.text(xmin, ymin, text, ha='center', va='center',
-                 size=7, color='black', bbox=bbox_props)
+                 size=8, color='black', bbox=bbox_props)
     
     ax.set_axis_off()    
     os.makedirs(save_path, exist_ok=True)
