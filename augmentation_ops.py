@@ -49,3 +49,18 @@ def random_flip(image, annotation):
         flipped_annotation = [(name, boxes.hflip_box(bbox, height, width)) 
                                           for name, bbox in annotation]
         return flipped_image, flipped_annotation
+
+def random_tile(image, annotation, min_tiles=2, max_tiles=3):
+
+    #sample the number of tiles
+    tiles = random.randrange(min_tiles, max_tiles + 1)
+    height, width = misc.height_and_width(image.shape)
+    initial_shape = image.shape
+    tiled_image = np.tile(image, (tiles, tiles, 1))
+    tiled_annotation = [(name, boxes.resize_box(
+                        boxes.shift_box(bbox, -i*width, -j*height),
+                        height*tiles, width*tiles, height, width))
+                        for i in range(tiles)
+                        for j in range(tiles) 
+                        for name, bbox in annotation]
+    return misc.resize(tiled_image, initial_shape), tiled_annotation

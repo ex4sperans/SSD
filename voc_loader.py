@@ -64,13 +64,12 @@ class VOCLoader:
             batch = [(self._normalize(image), annotation) for image, annotation in batch]
 
         if hasattr(self, '_augment') and augment:
-            augmented_batch = [self._augment(image, annotation) for image, annotation in batch]            
-            batch.extend(augmented_batch)
+            batch = [self._augment(image, annotation) for image, annotation in batch]            
 
         return batch
 
-    def new_train_batch(self, batch_size):
-        return self.new_batch(batch_size, self.train_set, augment=True)
+    def new_train_batch(self, batch_size, augment=True):
+        return self.new_batch(batch_size, self.train_set, augment=augment)
 
     def new_test_batch(self, batch_size):
         return self.new_batch(batch_size, self.test_set)
@@ -95,6 +94,8 @@ class VOCLoader:
                     return image, annotation
 
                 self._preprocess = _preprocess
+        else:
+            raise TypeError('`preprocessing` have to be an instance of tuple.')
 
     def _set_normalization_fn(self, normalization):
         if isinstance(normalization, str):
@@ -104,24 +105,34 @@ class VOCLoader:
                     return image/255
 
                 self._normalize = divide_255
+        raise TypeError('`normalization` have to be an instance of string.')
 
     def _set_augmentation_fn(self, augmentation):
 
-        if isinstance(augmentation, list):
+        if isinstance(augmentation, dict):
+
             def augment(image, annotation):
 
-                augmented_image, augmented_annotation = image.copy(), annotation.copy()
                 if 'random_crop' in augmentation:
-                    new_image, new_annotation = augmentation_ops.random_crop(
-                                                augmented_image, augmented_annotation['objects'])
-                    if new_annotation:
-                        augmented_annotation['objects'] = new_annotation
-                        augmented_image = new_image
+                    if np.random.uniform() < augmentation['random_crop']:
+                        image, annotation['objects'] = augmentation_ops.random_crop(
+                                                image, annotation['objects'])
 
                 if 'random_flip' in augmentation:
-                    augmented_image, augmented_annotation['objects'] = augmentation_ops.random_flip(
-                                                augmented_image, augmented_annotation['objects'])
-                return augmented_image, augmented_annotation
+                    if np.random.uniform() < augmentation['random_flip']:
+                        image, annotation['objects'] = augmentation_ops.random_flip(
+                                                image, annotation['objects'])
+
+                if 'random_tile' in augmentation:
+                    if np.random.uniform() < augmentation['random_tile']:
+                        image, annotation['objects'] = augmentation_ops.random_tile(
+                                                image, annotation['objects'])
+
+                annotation['file_name'] = 'augmented_' + annotation['file_name']
+
+                return image, annotation
 
             self._augment = augment
+        else:
+            raise TypeError('`augmentation` have to be an instance of dict.')
 
