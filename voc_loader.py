@@ -94,6 +94,8 @@ class VOCLoader:
                     return image, annotation
 
                 self._preprocess = _preprocess
+        elif preprocessing is None:
+            pass
         else:
             raise TypeError('`preprocessing` have to be an instance of tuple.')
 
@@ -105,7 +107,10 @@ class VOCLoader:
                     return image/255
 
                 self._normalize = divide_255
-        raise TypeError('`normalization` have to be an instance of string.')
+        elif normalization is None:
+            pass
+        else:
+            raise TypeError('`normalization` have to be an instance of string.')
 
     def _set_augmentation_fn(self, augmentation):
 
@@ -117,7 +122,7 @@ class VOCLoader:
                     if np.random.uniform() < augmentation['random_crop']:
                         image, annotation['objects'] = augmentation_ops.random_crop(
                                                 image, annotation['objects'])
-
+                            
                 if 'random_flip' in augmentation:
                     if np.random.uniform() < augmentation['random_flip']:
                         image, annotation['objects'] = augmentation_ops.random_flip(
@@ -133,6 +138,8 @@ class VOCLoader:
                 return image, annotation
 
             self._augment = augment
+        elif augmentation is None:
+            pass
         else:
             raise TypeError('`augmentation` have to be an instance of dict.')
 

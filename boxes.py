@@ -3,6 +3,7 @@ from collections import namedtuple
 
 import numpy as np
 import matplotlib
+matplotlib.use('pdf')
 import matplotlib.pyplot as plt
 
 import misc
