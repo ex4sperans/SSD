@@ -155,5 +155,6 @@
         "horse"
     ],
     "scope": "SSD",
-    "model_path": "saved_models/SSD"
+    "model_path": "saved_models/SSD",
+    "neg_pos_ratio": 3
 }

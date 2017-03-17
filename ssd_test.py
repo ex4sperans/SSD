@@ -5,7 +5,7 @@ import voc_loader
 neg_pos_ratio = 3
 overlap_threshold = 0.5
 nms_threshold = 0.3
-batch_size = 2
+batch_size = 8
 n_iter = 100000
 test_freq = 1
 save_freq = 100
@@ -13,7 +13,7 @@ save_freq = 100
 def learning_rate_schedule(iteration):
 
     if iteration < 20000:
-        learning_rate = 1e-10
+        learning_rate = 0
     elif iteration < 30000:
         learning_rate = 3e-5
     else:

@@ -20,7 +20,6 @@ def apply_log_offsets(default_box, offsets):
                            default_box.width*np.exp(offsets.width),
                            default_box.height*np.exp(offsets.height))
 
-
 def non_maximum_supression(confidences, default_boxes, corrections, 
                            class_names, threshold, height, width):
 
@@ -49,7 +48,7 @@ def non_maximum_supression(confidences, default_boxes, corrections,
             correction = boxes.CenterBox(*correction)
             non_background_boxes.append(
                 (apply_log_offsets(default_box, correction), label, confidence))
-        if confidence < 0.1:
+        if confidence < 0.01:
             break
 
     choices = []
@@ -105,4 +104,5 @@ def draw_top_boxes(batch, confidences, corrections, default_boxes,
                                     file_name='iteration{} {}'.format(iteration, file_name),
                                     bboxes=bboxes,
                                     labels=labels,
-                                    confidences=confidences)
+                                    confidences=confidences,
+                                    class_names=model.class_names)

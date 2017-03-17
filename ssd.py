@@ -6,6 +6,7 @@ import tensorflow as tf
 from tensorflow.contrib import slim
 
 from vgg.vgg import VGG_16
+
 import misc
 import preprocessing
 import postprocessing
@@ -24,6 +25,7 @@ class SSD:
         self.scope = model_params['scope']
         self.first_layer = model_params['first_layer']
         self.model_path = model_params['model_path']
+        self.neg_pos_ratio = model_params['neg_pos_ratio']
 
         self.vgg_16 = VGG_16(self.input_shape)
         self._create_graph()
@@ -49,8 +51,8 @@ class SSD:
 
     def _create_feedforward_convo(self):
 
-        #for batch norm
-        self.is_training = tf.placeholder(dtype=tf.bool)
+        self.is_training = tf.placeholder(dtype=tf.bool, shape=())
+
         layer = self._nested_getattr(self.first_layer)
 
         with slim.arg_scope([slim.conv2d],
@@ -74,6 +76,14 @@ class SSD:
                                             params['kernel_size'],
                                             padding=params['padding'],
                                             scope=name) 
+
+                layer = slim.batch_norm(
+                                        layer,
+                                        scale=True,
+                                        updates_collections=None,
+                                        is_training=self.is_training,
+                                        scope='batch_norm_{}'.format(name))
+                
                 setattr(self, name, layer)
                 print('{name} with shape {shape}'.format(
                         name=name, shape=layer.get_shape()))
@@ -143,6 +153,9 @@ class SSD:
         self.learning_rate = tf.placeholder(dtype=tf.float32)
 
     def _create_loss(self):
+    
+        self.positives, self.negatives = self._positives_and_negatives(
+                    self.confidences, self.labels, self.neg_pos_ratio)
         positives_and_negatives = self.positives + self.negatives
         classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
                                                 self.predicted_labels, self.labels)
@@ -162,7 +175,39 @@ class SSD:
         loss = self.classification_loss + self.localization_loss
         return loss
 
+    def _positives_and_negatives(self, confidences, labels, neg_pos_ratio):
+
+        background_class = self.n_classes
+        one_hot_labels = tf.one_hot(labels, self.n_classes + 1, axis=2)
+        positives = tf.cast(tf.not_equal(labels, background_class), tf.float32)
+        n_positives = tf.reduce_sum(positives, 1, keep_dims=True)
+        n_negatives = tf.cast(n_positives*neg_pos_ratio, tf.float32)
+        true_labels_mask = tf.cast(tf.logical_not(tf.cast(one_hot_labels, tf.bool)), tf.float32)
+        top_wrong_confidences = tf.reduce_max(confidences*true_labels_mask, axis=2)
+        non_positive_mask = tf.cast(tf.logical_not(tf.cast(positives, tf.bool)), tf.float32)
+
+        def get_threshold(inputs):
+            conf = tf.slice(inputs, [0], [self.total_boxes])
+            k = tf.slice(inputs, [self.total_boxes], [1])
+            k = tf.squeeze(tf.cast(k, tf.int32), 0)
+            top, _ = tf.nn.top_k(conf, k)
+
+            return tf.cond(
+                           tf.greater(k, 0),
+                           lambda: tf.slice(top, [k-1], [1]),
+                           lambda: tf.constant([1.0]))
+
+        map_inputs = tf.concat(1, (top_wrong_confidences*non_positive_mask, n_negatives))
+        thresholds = tf.map_fn(get_threshold, map_inputs)
+        self.thresholds = thresholds
+        negatives = tf.cast(
+            tf.greater(top_wrong_confidences*non_positive_mask, thresholds), tf.float32)
+
+        return positives, negatives
+
     def _create_optimizer(self, loss):
+        self.learning_rate = tf.placeholder(dtype=tf.float32)
+
         with tf.variable_scope('Optimizer_' + self.scope):
             optimizer = tf.train.AdamOptimizer(
                             learning_rate=self.learning_rate)
@@ -247,9 +292,7 @@ class SSD:
             for v in self.saver._var_list:
                 print('{}'.format(v.name))
 
-
     def confidences_and_corrections(self, feed_dict):
-
         fetches = [self.confidences, self.predicted_offsets]
         confidences, corrections = self.sess.run(fetches, feed_dict)
         return confidences, corrections
@@ -260,25 +303,27 @@ class SSD:
         default_boxes = boxes.get_default_boxes(self.out_shapes, self.box_ratios)
 
         for iteration in range(self.step(), n_iter):
+
             learning_rate = learning_rate_schedule(iteration)
-            train_batch = loader.new_train_batch(batch_size)
+
+            train_batch = loader.new_train_batch(batch_size, augment=True)
             self.train_iteration(
                                  train_batch=train_batch,
-                                 default_boxes=default_boxes,
-                                 overlap_threshold=overlap_threshold,
                                  iteration=iteration,
-                                 neg_pos_ratio=neg_pos_ratio,
-                                 learning_rate=learning_rate)
+                                 learning_rate=learning_rate,
+                                 default_boxes=default_boxes,
+                                 overlap_threshold=overlap_threshold)
 
             if iteration % save_freq == 0:
-                self.save_model(verbose=True)
+                self.save_model()
 
             if iteration % test_freq == 0:
-                test_batch = loader.new_train_batch(1)
+                test_batch = loader.new_train_batch(1, augment=False)
                 self.test_iteration(
                                     test_batch=test_batch,
                                     default_boxes=default_boxes,
-                                    overlap_threshold=nms_threshold,
+                                    overlap_threshold=overlap_threshold,
+                                    nms_threshold=nms_threshold,
                                     iteration=iteration,
                                     save_path='predictions/train')                                    
 
@@ -286,45 +331,38 @@ class SSD:
                 self.test_iteration(
                                     test_batch=test_batch,
                                     default_boxes=default_boxes,
-                                    overlap_threshold=nms_threshold,
+                                    overlap_threshold=overlap_threshold,
+                                    nms_threshold=nms_threshold,
                                     iteration=iteration,
                                     save_path='predictions/test')
 
-    def train_iteration(self, train_batch, default_boxes, overlap_threshold,
-                        iteration, neg_pos_ratio, learning_rate):
-    
+    def train_iteration(self, train_batch, iteration, learning_rate, 
+                        default_boxes, overlap_threshold):
+
         images, offsets, labels = preprocessing.get_feed(
-                            train_batch, self, default_boxes, overlap_threshold)
+                        train_batch, self, default_boxes, overlap_threshold)
+
         feed_dict = {
+                     # fake input to fill a test placeholder
+                     self.images: images,
                      self.offsets: offsets,
                      self.labels: labels,
-                     self.images: images,
                      self.learning_rate: learning_rate,
-                     self.is_training: False}
-
-        confidences, corrections = self.confidences_and_corrections(feed_dict)
-        positives, negatives = preprocessing.positives_and_negatives(
-                        confidences, labels, self, neg_pos_ratio)
-
-        # add positives and negatives to feed dict
-        feed_dict[self.positives] = positives
-        feed_dict[self.negatives] = negatives
-        feed_dict[self.is_training] = True
+                     self.is_training: True}
 
         fetches = [self.train_step, self.classification_loss, self.localization_loss]
         _, class_loss, loc_loss = self.sess.run(fetches, feed_dict)
+
         print('Iteration {}, Classificaion loss: {}, localization loss: {}'.format(
                                                         iteration, class_loss, loc_loss))
         self.update_step()
 
-    def test_iteration(self, test_batch, default_boxes, 
-                       overlap_threshold, iteration, save_path):
+    def test_iteration(self, test_batch, default_boxes, overlap_threshold,
+                       nms_threshold, iteration, save_path):
 
         images, offsets, labels = preprocessing.get_feed(
                             test_batch, self, default_boxes, overlap_threshold)
         feed_dict = {
-                     self.offsets: offsets,
-                     self.labels: labels,
                      self.images: images,
                      self.is_training: False}
 
@@ -335,7 +373,7 @@ class SSD:
                                       confidences=confidences,
                                       corrections=corrections,
                                       default_boxes=default_boxes,
-                                      threshold=overlap_threshold,
+                                      threshold=nms_threshold,
                                       save_path=save_path,
                                       iteration=iteration,
                                       model=self)
