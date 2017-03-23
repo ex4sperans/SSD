@@ -2,7 +2,7 @@ import numpy as np
 
 import boxes
 import misc
-from matching import match_boxes
+import matching
 
 def offsets(ground_truth_box, default_box):
 
@@ -50,21 +50,15 @@ def process_matches(matches, default_boxes, class_names):
 def get_feed(batch, model, default_boxes, threshold):
     images = [image for image, annotation in batch]
 
-    matches_batch = []
+    feed = []
     for image, annotation in batch:
-        matches = match_boxes(
+        feed.append(matching.match_with_offsets(
                               annotations=annotation['objects'],
                               image=image,
                               default_boxes=default_boxes,
                               out_shapes=model.out_shapes,
-                              threshold=threshold)
-        matches_batch.append(matches)
-        
-    feed = [misc.flatten_list(process_matches(
-                                              matches=matches,
-                                              default_boxes=default_boxes,
-                                              class_names=model.class_names))
-                for matches in matches_batch]
+                              class_names=model.class_names,
+                              threshold=threshold))
     # split feed batch into offsets and labels batches
     offsets, labels = list(zip(*[list(zip(*f)) for f in feed]))
     return images, list(offsets), list(labels)

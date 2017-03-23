@@ -7,6 +7,7 @@ matplotlib.use('pdf')
 import matplotlib.pyplot as plt
 
 import misc
+import boxlib
 
 """There are two box classes: BoundBox and CenterBox. BoundBox is defined by
 the coordinates of the top left corner and the bottom right corner. CenterBox is 
@@ -166,12 +167,19 @@ def intersection(box1, box2):
 
     return max(intersection_w, 0)*max(intersection_h, 0)
 
-def jaccard_overlap(box1, box2):
-    intersection_ = intersection(box1, box2)
-    box1 = boundbox_to_centerbox(box1)
-    box2 = boundbox_to_centerbox(box2)
-    union = box1.width*box1.height + box2.width*box2.height - intersection_
-    return intersection_/union if union > 0 else 0 
+def jaccard_overlap(box1, box2, use_cython=True):
+
+    if use_cython:
+        box1 = centerbox_to_boundbox(box1)
+        box2 = centerbox_to_boundbox(box2)
+        return boxlib.jaccard_overlap(box1, box2)
+    else:
+        intersection_ = intersection(box1, box2)
+        box1 = boundbox_to_centerbox(box1)
+        box2 = boundbox_to_centerbox(box2)
+        union = box1.width*box1.height + box2.width*box2.height - intersection_
+        overlap = intersection_/union if union > 0 else 0
+        return overlap 
 
 def normalize_box(box, height, width):
     #normalize width and height of a box to be in range (0, 1)
