@@ -8,7 +8,7 @@ from tensorflow.contrib import slim
 
 class VGG_16:
 
-    def __init__(self, input_shape, model_params_path='vgg/vgg_params.json'):
+    def __init__(self, input_shape, inputs, model_params_path='vgg/vgg_params.json'):
 
         model_params = self._load_params_json(model_params_path)
 
@@ -17,16 +17,12 @@ class VGG_16:
         self.scope = model_params['scope']
         self.blue_mean, self.green_mean, self.red_mean = model_params['mean']
 
-        self._create_placeholders()
+        self.inputs = tf.reshape(inputs, [-1] + self.input_shape)
         self._create_graph()
         self.model_vars = self._get_vars_by_scope(self.scope)
 
         print('\nNumber of parameters for {scope}: {n:.1f}M'.format(
             scope=self.scope, n=self._number_of_parameters(self.model_vars)/1e6))
-
-    def _create_placeholders(self):
-
-        self.inputs = tf.placeholder(tf.float32, shape=[None] + self.input_shape)
 
     def _create_convo_layers(self, inputs):
 

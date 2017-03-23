@@ -5,6 +5,7 @@ import fnmatch
 
 from scipy.ndimage import imread
 from skimage.transform import resize as imresize
+from skimage.io import imsave
 
 
 def flatten_list(nested_list):
@@ -24,7 +25,10 @@ def height_and_width(shape):
             ' width from shape {shape}.'.format(shape=shape))
 
 def load_image(image_path):
-        return imread(image_path)
+    return imread(image_path)
+
+def save_image(image_path, image):
+    imsave(image_path, image)
 
 def load_json(file_path):
         with open(file_path, 'r') as f:

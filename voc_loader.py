@@ -118,10 +118,6 @@ class VOCLoader:
 
             def augment(image, annotation):
 
-                if 'random_crop' in augmentation:
-                    if np.random.uniform() < augmentation['random_crop']:
-                        image, annotation['objects'] = augmentation_ops.random_crop(
-                                                image, annotation['objects'])
                             
                 if 'random_flip' in augmentation:
                     if np.random.uniform() < augmentation['random_flip']:
@@ -131,6 +127,10 @@ class VOCLoader:
                 if 'random_tile' in augmentation:
                     if np.random.uniform() < augmentation['random_tile']:
                         image, annotation['objects'] = augmentation_ops.random_tile(
+                                                image, annotation['objects'])
+                if 'random_crop' in augmentation:
+                    if np.random.uniform() < augmentation['random_crop']:
+                        image, annotation['objects'] = augmentation_ops.random_crop(
                                                 image, annotation['objects'])
 
                 annotation['file_name'] = 'augmented_' + annotation['file_name']

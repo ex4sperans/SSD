@@ -1,11 +1,13 @@
 import functools
 import os
+import json
 
 import numpy as np
 import tensorflow as tf
 from tensorflow.contrib import slim
 
 from vgg.vgg import VGG_16
+from multithreaded_data_provider import MultithreadedTensorProvider
 
 import misc
 import preprocessing
@@ -27,13 +29,12 @@ class SSD:
         self.model_path = model_params['model_path']
         self.neg_pos_ratio = model_params['neg_pos_ratio']
 
-        self.vgg_16 = VGG_16(self.input_shape)
-        self._create_graph()
+
         self._create_placeholders()
+        self._create_graph()
         self.step()
         self.loss = self._create_loss()
         self.optimizer_vars = self._create_optimizer(self.loss)
-
         self.model_vars = self._get_vars_by_scope(self.scope)
         self.saver = self._create_saver(
             self.model_vars + self.vgg_16.model_vars + self.optimizer_vars)
@@ -51,12 +52,10 @@ class SSD:
 
     def _create_feedforward_convo(self):
 
-        self.is_training = tf.placeholder(dtype=tf.bool, shape=())
-
         layer = self._nested_getattr(self.first_layer)
 
         with slim.arg_scope([slim.conv2d],
-              activation_fn=tf.nn.relu,
+              activation_fn=None,
               weights_regularizer=slim.l2_regularizer(0.0005)):
 
             print('\nCreating layers for {scope}:'.format(scope=self.scope))
@@ -75,14 +74,14 @@ class SSD:
                                             layer,
                                             params['kernel_size'],
                                             padding=params['padding'],
-                                            scope=name) 
-
+                                            scope=name)     
                 layer = slim.batch_norm(
                                         layer,
                                         scale=True,
                                         updates_collections=None,
                                         is_training=self.is_training,
                                         scope='batch_norm_{}'.format(name))
+                layer = tf.nn.relu(layer)
                 
                 setattr(self, name, layer)
                 print('{name} with shape {shape}'.format(
@@ -145,11 +144,21 @@ class SSD:
                 self._create_out_convo()
 
     def _create_placeholders(self):
-        self.images = self.vgg_16.inputs
-        self.labels = tf.placeholder(dtype=tf.int32, shape=(None, self.total_boxes))
-        self.offsets = tf.placeholder(dtype=tf.float32, shape=(None, self.total_boxes, 4))
-        self.positives = tf.placeholder(dtype=tf.float32, shape=(None, self.total_boxes))
-        self.negatives = tf.placeholder(dtype=tf.float32, shape=(None, self.total_boxes))
+
+        self.tensor_provider = MultithreadedTensorProvider(
+                                                capacity=20,
+                                                sess=self.sess,
+                                                dtypes=[tf.float32, tf.int32, tf.float32],
+                                                number_of_threads=2)
+
+        self.train_images, self.labels, self.offsets = self.tensor_provider.get_input()
+        self.is_training = tf.placeholder(dtype=tf.bool, shape=())
+        self.test_images = tf.placeholder(dtype=tf.float32, shape=[None] + self.input_shape)
+        self.images = tf.cond(
+                              self.is_training,
+                              lambda: self.train_images,
+                              lambda: self.test_images)
+        self.vgg_16 = VGG_16(self.input_shape, self.images)
         self.learning_rate = tf.placeholder(dtype=tf.float32)
 
     def _create_loss(self):
@@ -170,9 +179,9 @@ class SSD:
 
         self.classification_loss = tf.reduce_mean(classification_loss)
         self.localization_loss = tf.reduce_mean(localization_loss)
-
+        self.l2_loss = slim.losses.get_regularization_losses()
         #average over minibatch
-        loss = self.classification_loss + self.localization_loss
+        loss = self.classification_loss + self.localization_loss + self.l2_loss
         return loss
 
     def _positives_and_negatives(self, confidences, labels, neg_pos_ratio):
@@ -302,17 +311,26 @@ class SSD:
 
         default_boxes = boxes.get_default_boxes(self.out_shapes, self.box_ratios)
 
+        def data_provider():
+
+            train_batch = loader.new_train_batch(batch_size, augment=True)
+            images, offsets, labels = preprocessing.get_feed(
+                        train_batch, self, default_boxes, overlap_threshold)
+
+            return (np.array(images, dtype=np.float32),
+                    np.array(labels, dtype=np.int32),
+                    np.array(offsets, dtype=np.float32))            
+
+        self.tensor_provider.set_data_provider(data_provider)
+
         for iteration in range(self.step(), n_iter):
 
             learning_rate = learning_rate_schedule(iteration)
-
-            train_batch = loader.new_train_batch(batch_size, augment=True)
+            
             self.train_iteration(
-                                 train_batch=train_batch,
                                  iteration=iteration,
                                  learning_rate=learning_rate,
-                                 default_boxes=default_boxes,
-                                 overlap_threshold=overlap_threshold)
+                                 default_boxes=default_boxes)
 
             if iteration % save_freq == 0:
                 self.save_model()
@@ -336,22 +354,26 @@ class SSD:
                                     iteration=iteration,
                                     save_path='predictions/test')
 
-    def train_iteration(self, train_batch, iteration, learning_rate, 
-                        default_boxes, overlap_threshold):
-
-        images, offsets, labels = preprocessing.get_feed(
-                        train_batch, self, default_boxes, overlap_threshold)
+    def train_iteration(self, iteration, learning_rate, default_boxes):
 
         feed_dict = {
                      # fake input to fill a test placeholder
-                     self.images: images,
-                     self.offsets: offsets,
-                     self.labels: labels,
+                     self.test_images: np.zeros([1] + self.input_shape),
                      self.learning_rate: learning_rate,
                      self.is_training: True}
 
-        fetches = [self.train_step, self.classification_loss, self.localization_loss]
-        _, class_loss, loc_loss = self.sess.run(fetches, feed_dict)
+        fetches = [self.train_step, self.classification_loss, self.localization_loss, self.images, self.positives]
+        _, class_loss, loc_loss, images, positives = self.sess.run(fetches, feed_dict)
+
+        default_boxes = misc.flatten_list(default_boxes)
+        for i, (image, image_positives) in enumerate(zip(images, positives)):
+
+            matched_boxes = [default_box for default_box, pos in zip(default_boxes, image_positives) if pos]
+            height, width = misc.height_and_width(self.input_shape)
+            matched_boxes = [boxes.recover_box(box, height, width) for box in matched_boxes]
+
+            boxes.plot_with_bboxes(image, 'batch_plots', str(i) + '.jpg', matched_boxes, [])
+
 
         print('Iteration {}, Classificaion loss: {}, localization loss: {}'.format(
                                                         iteration, class_loss, loc_loss))
@@ -363,7 +385,7 @@ class SSD:
         images, offsets, labels = preprocessing.get_feed(
                             test_batch, self, default_boxes, overlap_threshold)
         feed_dict = {
-                     self.images: images,
+                     self.test_images: images,
                      self.is_training: False}
 
         confidences, corrections = self.confidences_and_corrections(feed_dict)
