@@ -22,8 +22,10 @@ def match_with_offsets(annotations, image, default_boxes, out_shapes, class_name
     background_class = len(class_names)
     image_height, image_width = boxes.height_and_width(image.shape)
     negative_match = match = (boxes.CenterBox(0, 0, 0, 0), background_class)
-    if not len(annotations):
-        return [negative_match]*len(misc.flatten_list(default_boxes))
+    total_boxes = len(misc.flatten_list(default_boxes))
+    matches = [negative_match for _ in range(total_boxes)]
+    if not annotations:
+        return matches
     #default boxes is assumed to be a 4d nested list
     for class_name, ground_truth_box in annotations:
         top_match = {'overlap': 0, 'match': None}
@@ -36,8 +38,8 @@ def match_with_offsets(annotations, image, default_boxes, out_shapes, class_name
             
             x_min = max(floor(scaled_ground_truth_box.x_min*out_width), 0)
             y_min = max(floor(scaled_ground_truth_box.y_min*out_height), 0)
-            x_max = min(ceil((scaled_ground_truth_box.x_max)*out_width), out_width)
-            y_max = min(ceil((scaled_ground_truth_box.y_max)*out_height), out_height)
+            x_max = min(ceil(scaled_ground_truth_box.x_max*out_width), out_width)
+            y_max = min(ceil(scaled_ground_truth_box.y_max*out_height), out_height)
 
             for x in range(out_width):
                 for y in range(out_height):
@@ -48,6 +50,7 @@ def match_with_offsets(annotations, image, default_boxes, out_shapes, class_name
                             if overlap > threshold:
                                 offsets = log_offsets(scaled_ground_truth_box, default_box)
                                 match = (offsets, class_names.index(class_name))
+                                matches[box_counter] = match
                                 matched_boxes += 1
                                     
                             if overlap > top_match['overlap']:
@@ -56,10 +59,7 @@ def match_with_offsets(annotations, image, default_boxes, out_shapes, class_name
                                 top_match['match'] = (offsets, class_names.index(class_name)) 
                                 top_match['box_counter'] = box_counter
                                 top_match['default_box'] = default_box
-                        if len(matches) > box_counter:
-                            matches[box_counter] = match
-                        else:
-                            matches.append(match)
+
                         box_counter += 1
 
         # if ground truth box was not matched to any default box
