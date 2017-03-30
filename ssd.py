@@ -16,7 +16,7 @@ import boxes
 
 class SSD:
 
-    def __init__(self, model_params_path='ssd_params.json', resume=True):
+    def __init__(self, model_params_path='ssd_params.json', resume=True, mode='train'):
 
         model_params = misc.load_json(model_params_path)
 
@@ -29,15 +29,23 @@ class SSD:
         self.model_path = model_params['model_path']
         self.neg_pos_ratio = model_params['neg_pos_ratio']
 
-
+        self.mode = mode
         self._create_placeholders()
         self._create_graph()
         self.step()
-        self.loss = self._create_loss()
-        self.optimizer_vars = self._create_optimizer(self.loss)
+
+        if mode == 'train':
+            self.loss = self._create_loss()
+            self.optimizer_vars = self._create_optimizer(self.loss)
+            
         self.model_vars = self._get_vars_by_scope(self.scope)
-        self.saver = self._create_saver(
-            self.model_vars + self.vgg_16.model_vars + self.optimizer_vars)
+
+        if mode == 'train':
+            self.saver_vars = self.model_vars + self.vgg_16.model_vars + self.optimizer_vars
+        elif mode == 'inference':
+            self.saver_vars = self.model_vars + self.vgg_16.model_vars
+
+        self.saver = self._create_saver(self.saver_vars)
 
         if resume:
             self.load_model(verbose=True)
@@ -145,21 +153,26 @@ class SSD:
 
     def _create_placeholders(self):
 
-        self.tensor_provider = MultithreadedTensorProvider(
+        self.learning_rate = tf.placeholder(dtype=tf.float32)
+        self.test_images = tf.placeholder(dtype=tf.float32, shape=[None] + self.input_shape)
+        self.is_training = tf.placeholder(dtype=tf.bool, shape=())              
+        if self.mode == 'train':
+            self.tensor_provider = MultithreadedTensorProvider(
                                                 capacity=20,
                                                 sess=self.sess,
                                                 dtypes=[tf.float32, tf.int32, tf.float32],
                                                 number_of_threads=2)
 
-        self.train_images, self.labels, self.offsets = self.tensor_provider.get_input()
-        self.is_training = tf.placeholder(dtype=tf.bool, shape=())
-        self.test_images = tf.placeholder(dtype=tf.float32, shape=[None] + self.input_shape)
-        self.images = tf.cond(
-                              self.is_training,
-                              lambda: self.train_images,
-                              lambda: self.test_images)
+            self.train_images, self.labels, self.offsets = self.tensor_provider.get_input()
+            self.images = tf.cond(
+                                  self.is_training,
+                                  lambda: self.train_images,
+                                  lambda: self.test_images)
+        elif self.mode == 'inference':
+            self.images = self.test_images
+        else:
+            raise ValueError('Incorrect mode: {}'.format(self.mode))
         self.vgg_16 = VGG_16(self.input_shape, self.images)
-        self.learning_rate = tf.placeholder(dtype=tf.float32)
 
     def _create_loss(self):
     
@@ -362,17 +375,20 @@ class SSD:
                      self.learning_rate: learning_rate,
                      self.is_training: True}
 
-        fetches = [self.train_step, self.classification_loss, self.localization_loss, self.images, self.positives]
-        _, class_loss, loc_loss, images, positives = self.sess.run(fetches, feed_dict)
+        fetches = [self.train_step, self.classification_loss, self.localization_loss]
+        _, class_loss, loc_loss = self.sess.run(fetches, feed_dict)
 
-        default_boxes = misc.flatten_list(default_boxes)
-        for i, (image, image_positives) in enumerate(zip(images, positives)):
+        # fetches = [self.train_step, self.classification_loss, self.localization_loss, self.images, self.positives]
+        # _, class_loss, loc_loss, images, positives = self.sess.run(fetches, feed_dict)
 
-            matched_boxes = [default_box for default_box, pos in zip(default_boxes, image_positives) if pos]
-            height, width = misc.height_and_width(self.input_shape)
-            matched_boxes = [boxes.recover_box(box, height, width) for box in matched_boxes]
+        # default_boxes = misc.flatten_list(default_boxes)
+        # for i, (image, image_positives) in enumerate(zip(images, positives)):
 
-            boxes.plot_with_bboxes(image, 'batch_plots', str(i) + '.jpg', matched_boxes, [])
+        #     matched_boxes = [default_box for default_box, pos in zip(default_boxes, image_positives) if pos]
+        #     height, width = misc.height_and_width(self.input_shape)
+        #     matched_boxes = [boxes.recover_box(box, height, width) for box in matched_boxes]
+
+        #     boxes.plot_with_bboxes(image, 'batch_plots', str(i) + '.jpg', matched_boxes, [])
 
 
         print('Iteration {}, Classificaion loss: {}, localization loss: {}'.format(
@@ -400,3 +416,37 @@ class SSD:
                                       iteration=iteration,
                                       model=self)
 
+
+    def predict_single_image(self, image_path, predicted_image_path, 
+                             nms_threshold):
+
+        default_boxes = boxes.get_default_boxes(self.out_shapes, self.box_ratios)
+        image = misc.load_image(image_path)
+        resized_image = misc.resize(image, self.input_shape)
+        original_height, original_width = misc.height_and_width(image.shape)
+        height, width = misc.height_and_width(self.input_shape)
+
+        feed_dict = {
+                     self.test_images: [resized_image/255],
+                     self.is_training: False}
+
+        confidences, corrections = self.confidences_and_corrections(feed_dict)
+        confidences, corrections = confidences[0], corrections[0]
+
+        bboxes, labels, confidences = postprocessing.non_maximum_supression(
+                                            confidences=confidences,
+                                            default_boxes=default_boxes,
+                                            corrections=corrections,
+                                            class_names=self.class_names,
+                                            threshold=nms_threshold,
+                                            height=original_height,
+                                            width=original_width)
+
+        boxes.plot_predicted_bboxes(
+                                    image=image,
+                                    save_path='./',
+                                    file_name=predicted_image_path,
+                                    bboxes=bboxes,
+                                    labels=labels,
+                                    confidences=confidences,
+                                    class_names=self.class_names)
