@@ -32,7 +32,7 @@ class SSD:
         self.mode = mode
         self._create_placeholders()
         self._create_graph()
-        self.step()
+        self._create_step()
 
         if mode == 'train':
             self.loss = self._create_loss()
@@ -112,8 +112,7 @@ class SSD:
 
                 # number of layer boxes times number of classes + 1 (background)
                 # plus number of layer boxes times 4 (box correction)
-                # layer boxes is the number of boxes per pixel of CNN feature map
-                # usually is set to 2, 3 or 6
+                # layer boxes is the number of boxes per cell of CNN feature map
                 layer_boxes = len(params['box_ratios'])
                 self.box_ratios.append(params['box_ratios'])
                 depth_per_box = self.n_classes + 1 + 4
@@ -192,7 +191,7 @@ class SSD:
 
         self.classification_loss = tf.reduce_mean(classification_loss)
         self.localization_loss = tf.reduce_mean(localization_loss)
-        self.l2_loss = slim.losses.get_regularization_losses()
+        self.l2_loss = tf.add_n(slim.losses.get_regularization_losses())
         #average over minibatch
         loss = self.classification_loss + self.localization_loss + self.l2_loss
         return loss
@@ -234,25 +233,23 @@ class SSD:
             optimizer = tf.train.AdamOptimizer(
                             learning_rate=self.learning_rate)
             grads_and_vars = optimizer.compute_gradients(loss)
-            self.train_step = optimizer.apply_gradients(grads_and_vars)
+            self.train_step = optimizer.apply_gradients(grads_and_vars,
+                                                        global_step=self.step)
         optimizer_vars = self._get_vars_by_scope('Optimizer_' + self.scope)
         return optimizer_vars
 
     def _create_saver(self, vars_):
         return tf.train.Saver(vars_)        
 
-    def step(self):
-        if not hasattr(self, '_step'):
-            with tf.variable_scope(self.scope):
-                self._step = tf.get_variable(name='step', 
-                    initializer=tf.ones(shape=(), dtype=tf.int32),
-                    trainable=False)
-            self.sess.run(tf.variables_initializer([self._step]))
-        return self.sess.run(self._step)
+    def _create_step(self):
+        with tf.variable_scope(self.scope):
+            self.step = tf.get_variable(name='step', 
+                initializer=tf.ones(shape=(), dtype=tf.int32),
+                trainable=False)
+            self.sess.run(tf.variables_initializer([self.step]))
 
-    def update_step(self):
-        assign_op = self._step.assign(self.step() + 1)
-        self.sess.run(assign_op)
+    def get_step(self):
+        return self.sess.run(self.step)
 
     def _nested_getattr(self, attr):
         #getattr built-in extended with capability of handling nested attributes
@@ -336,7 +333,7 @@ class SSD:
 
         self.tensor_provider.set_data_provider(data_provider)
 
-        for iteration in range(self.step(), n_iter):
+        for iteration in range(self.get_step(), n_iter):
 
             learning_rate = learning_rate_schedule(iteration)
             
@@ -393,7 +390,6 @@ class SSD:
 
         print('Iteration {}, Classificaion loss: {}, localization loss: {}'.format(
                                                         iteration, class_loss, loc_loss))
-        self.update_step()
 
     def test_iteration(self, test_batch, default_boxes, overlap_threshold,
                        nms_threshold, iteration, save_path):
