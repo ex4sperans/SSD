@@ -81,7 +81,7 @@ class VGG_16:
         for key, var in zip(keys, convo_vars):
             saved_var = saved_weights[key]
             print('{name} with shape {shape}'.format(name=key, shape=saved_var.shape))
-            self.sess.run(var.assign(saved_var))
+            sess.run(var.assign(saved_var))
 
     @property
     def sess(self):
