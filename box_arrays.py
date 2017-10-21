@@ -1,9 +1,12 @@
 import numpy as np
 import pandas as pd
 
+from box_ops import iou
+
 
 BOUNDBOX_COLUMNS = ["x_min", "y_min", "x_max", "y_max"]
 CENTERBOX_COLUMNS = ["x_center", "y_center", "width", "height"]
+BOX_COLUMNS = BOUNDBOX_COLUMNS + CENTERBOX_COLUMNS
 
 BOUNDBOX_TO_CENTERBOX = np.array([[ 0.5,    0,  -1,    0],
                                   [   0,  0.5,   0,   -1],
@@ -13,61 +16,67 @@ BOUNDBOX_TO_CENTERBOX = np.array([[ 0.5,    0,  -1,    0],
 CENTERBOX_TO_BOUNDBOX = np.array([[   1,    0,    1,    0],
                                   [   0,    1,    0,    1],
                                   [-0.5,    0,  0.5,    0],
-                                  [   0, -0.5,    0,  0.5]])
+                                  [   0, -0.5,    0,  0.5]], dtype=np.float32)
 
 
 class BoundBoxArray(pd.DataFrame):
 
     @classmethod
     def from_boxes(cls, boxes, classnames=None):
-        """Initialize BoundBoxArray from list of bounding boxes.
+        """Initialize BoundBoxArray from list or numpy array of boxes.
 
         Args:
-            boxes: list of tuples: (x_min, y_min, x_max, y_max)
+            boxes: list of tuples: (x_min, y_min, x_max, y_max, 
+                                    x_center, y_center, width, height),
+                or similar numpy array
             classnames: list of classnames for bounding boxes, optional
         """
+        boxes = np.array(boxes, dtype=np.float32)
+
         return cls(pd.DataFrame.from_records(boxes,
                                              index=classnames,
-                                             columns=BOUNDBOX_COLUMNS))
+                                             columns=BOX_COLUMNS))
 
-    def as_centerbox_array(self):
-        """Returns correspoding CenterBoxInstance"""
-        centerboxes = np.matmul(self.as_matrix(), BOUNDBOX_TO_CENTERBOX)
-        return CenterBoxArray.from_boxes(centerboxes, classnames=self.index)
+    @classmethod
+    def from_boundboxes(cls, boxes, classnames=None):
+        """Initialize BoundBoxArray from list or numpy array of bound
+
+        Args:
+            boxes: list of tuples: (x_min, y_min, x_max, y_max),
+                or similar numpy array
+            classnames: list of classnames for bounding boxes, optional
+        """
+        boundboxes = np.array(boxes, dtype=np.float32)
+        centerboxes = np.matmul(boundboxes, BOUNDBOX_TO_CENTERBOX)
+        boxes = np.hstack((boundboxes, centerboxes))
+
+        return cls(pd.DataFrame.from_records(boxes,
+                                             index=classnames,
+                                             columns=BOX_COLUMNS))
+
+    @classmethod
+    def from_centerboxes(cls, boxes, classnames=None):
+        """Initialize BoundBoxArray from list or numpy array of centerboxes.
+
+        Args:
+            boxes: list of tuples: (x_center, y_center, width, height),
+                or similar numpy array
+            classnames: list of classnames for bounding boxes, optional
+        """
+        centerboxes = np.array(boxes, dtype=np.float32)
+        boundboxes = np.matmul(centerboxes, CENTERBOX_TO_BOUNDBOX)
+        boxes = np.hstack((boundboxes, centerboxes))
+
+        return cls(pd.DataFrame
+                   .from_records(boxes,
+                                 index=classnames,
+                                 columns=BOX_COLUMNS))
 
     def rescale(self, scale: tuple):
         """Rescale accoding to `scale`."""
 
         vertical, horizontal = scale
-        scale = np.array([horizontal, vertical, horizontal, vertical])
+        scale = np.array([horizontal, vertical] * 4)
 
         scaled = self.as_matrix() / scale
         return BoundBoxArray.from_boxes(scaled, classnames=self.index)
-
-
-class CenterBoxArray(pd.DataFrame):
-
-    @classmethod
-    def from_boxes(cls, boxes, classnames=None):
-        """Initialize CenterBoxArray from list of bounding boxes.
-
-        Args:
-            boxes: list of tuples: (x_center, y_center, width, height)
-            classnames: list of classnames for center boxes, optional
-        """
-        return cls(pd.DataFrame.from_records(boxes,
-                                             index=classnames,
-                                             columns=CENTERBOX_COLUMNS))
-    def as_boundbox_array(self):
-        """Returns correspoding BoundBoxInstance"""
-        boundboxes = np.matmul(self.as_matrix(), CENTERBOX_TO_BOUNDBOX)
-        return BoundBoxArray.from_boxes(boundboxes, classnames=self.index)
-
-    def rescale(self, scale: tuple):
-        """Rescale accoding to `scale`."""
-
-        vertical, horizontal = scale
-        scale = np.array([horizontal, vertical, horizontal, vertical])
-
-        scaled = self.as_matrix() / scale
-        return CenterBoxArray.from_boxes(scaled, classnames=self.index)
