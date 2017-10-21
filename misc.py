@@ -5,6 +5,7 @@ import fnmatch
 
 from scipy.ndimage import imread
 from skimage.transform import resize as imresize
+from skimage.transform import rotate as imrotate
 from skimage.io import imsave
 
 
@@ -38,9 +39,21 @@ def load_json(file_path):
 def resize(image, new_shape):
         return imresize(image, new_shape, preserve_range=True) 
 
+def rotate(image, angle):
+    return imrotate(image, angle, preserve_range=True)
+
 def find_files(path, file_type, sort=True):
     files = list()
     for root, dirnames, filenames in os.walk(path):
         for filename in fnmatch.filter(filenames, file_type):
             files.append(os.path.join(root, filename))
     return sorted(files) if sort else files
+
+def file_name_with_extension(file_path):
+    head, tail = os.path.split(file_path)
+    return tail
+
+def file_name(file_path):
+    file_name_with_ext = file_name_with_extension(file_path)
+    root, ext = os.path.splitext(file_name_with_ext)
+    return root

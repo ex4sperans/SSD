@@ -9,15 +9,6 @@ import matplotlib.pyplot as plt
 import misc
 import boxlib
 
-"""There are two box classes: BoundBox and CenterBox. BoundBox is defined by
-the coordinates of the top left corner and the bottom right corner. CenterBox is 
-defined by the box center, box width and box height. Model is trained in CenterBox 
-coordinates (more precisely, with offsets, but still in CenterBox coordinates), 
-while the vast majority of post- and pre- processing is performed using BoundBox.
-Two functions defined below perform conversion between those two boxes types.
-Both box types are namedtuple`s, therefore they have explicit and clear names for
-their fields.
-"""
 
 BoundBox = namedtuple('BoundBox', ['x_min', 'y_min', 'x_max', 'y_max'])
 CenterBox = namedtuple('CenterBox', ['center_x', 'center_y', 'width', 'height'])
@@ -58,22 +49,9 @@ def centerbox_to_boundbox(box):
         raise TypeError('`box` should be either CenterBox or BoundBox.'\
             ' But `box` is of type {box_type}.'.format(box_type=type(box)))
 
-def plot_default_boxes(boxes, save_path, name):
-    fig = plt.figure(figsize=(10, 10))
-    ax = fig.add_subplot(111)
-    boxes = [centerbox_to_boundbox(box) for box in boxes]
-    colormap = iter(matplotlib.cm.jet(np.linspace(0, 1, len(boxes))))
-    for box in boxes:
-        xmin, ymin, xmax, ymax = box 
-        bx = (xmin, xmax, xmax, xmin, xmin)
-        by = (ymin, ymin, ymax, ymax, ymin)
-        ax.plot(bx, by, c=next(colormap), lw=2, alpha=0.5)
-    os.makedirs(save_path, exist_ok=True)
-    fig.savefig(os.path.join(save_path, name))
-    plt.close()
 
 def box_scale(k, m):
-    s_min = 0.1
+    s_min = 0.2
     s_max = 0.9
     #equation 4 from paper
     s_k = s_min + (s_max - s_min) * (k - 1.0) / (m - 1.0) 
@@ -143,9 +121,9 @@ def get_default_boxes(out_shapes, box_ratios):
     for out_shape, scale, layer_box_ratios in layer_params:
         out_height, out_width = misc.height_and_width(out_shape)
         layer_boxes = [[[default_box(i, j, scale, box_ratio, out_width, out_height)
-                        for box_ratio in layer_box_ratios]
-                        for j in range(out_height)]
-                        for i in range(out_width)]
+                         for box_ratio in layer_box_ratios]
+                         for i in range(out_width)]
+                         for j in range(out_height)]
         default_boxes.append(layer_boxes)
     print('\nNumber of default boxes: {n}.'.format(n=len(misc.flatten_list(default_boxes))))
     return default_boxes
@@ -205,6 +183,22 @@ def resize_box(box, orig_height, orig_width, new_height, new_width):
     normalized_box = normalize_box(box, orig_height, orig_width)
     return recover_box(normalized_box, new_height, new_width) 
 
+def plot_default_boxes(boxes, save_path, name):
+    fig = plt.figure(figsize=(10, 10))
+    ax = fig.add_subplot(111)
+    boxes = [centerbox_to_boundbox(box) for box in boxes]
+    colormap = iter(matplotlib.cm.jet(np.linspace(0, 1, len(boxes))))
+    for box in boxes:
+        if np.random.uniform() < 10/len(boxes):
+            xmin, ymin, xmax, ymax = box 
+            bx = (xmin, xmax, xmax, xmin, xmin)
+            by = (ymin, ymin, ymax, ymax, ymin)
+            ax.plot(bx, by, c=next(colormap), lw=2, alpha=0.5)
+    os.makedirs(save_path, exist_ok=True)
+    fig.savefig(os.path.join(save_path, name))
+    plt.close()
+
+
 def plot_with_bboxes(image, save_path, file_name, 
                     bboxes, ground_truth_boxes):
 
@@ -230,16 +224,17 @@ def plot_with_bboxes(image, save_path, file_name,
     plt.close()
 
 def plot_predicted_bboxes(image, save_path, file_name, 
-                          bboxes, labels, confidences, class_names):
+                          bboxes, labels, confidences, 
+                          class_names, show_confidence=False):
 
     if len(bboxes) != len(labels):
         raise ValueError('Each label should correspond to bbox.')
 
-    fig = plt.figure()
+    fig = plt.figure(figsize=(5, 5))
     ax = fig.add_subplot(111)
     ax.imshow(image)
 
-    colors = list(matplotlib.cm.hsv(np.linspace(0, 1, len(class_names))))
+    colors = list(matplotlib.cm.Vega20(np.linspace(0, 1, len(class_names))))
 
     for box, label, confidence in zip(bboxes, labels, confidences):
         box = centerbox_to_boundbox(box)
@@ -247,15 +242,19 @@ def plot_predicted_bboxes(image, save_path, file_name,
         bx = (xmin, xmax, xmax, xmin, xmin)
         by = (ymin, ymin, ymax, ymax, ymin)
         color = colors[class_names.index(label)]
-        ax.plot(bx, by, c=color, lw=1.5)
+        ax.plot(bx, by, c=color, lw=3)
         bbox_props = dict(boxstyle='square,pad=0.3',
                          fc=color, ec=color, lw=1)
-        text = '{} {:.2f}'.format(label, confidence)
+        if show_confidence:
+            text = '{} {:.2f}'.format(label, confidence)
+        else:
+            text = label
         ax.text(xmin, ymin, text, ha='center', va='center',
-                 size=8, color='black', bbox=bbox_props)
+                 size=10, color='black', bbox=bbox_props, fontweight='semibold')
     
     ax.set_axis_off()    
     os.makedirs(save_path, exist_ok=True)
+    fig.subplots_adjust(hspace=0.1, wspace=0.01)
     fig.savefig(os.path.join(save_path, file_name))
     plt.close()
 
@@ -270,7 +269,7 @@ if __name__ == '__main__':
                   (1, 3, 3, 75), 
                   (1, 1, 1, 75)]
 
-    box_ratios = [[1, 1/2, 2]]*len(out_shapes)
+    box_ratios = [[1, 1/2, 2, 3, 1/3]]*len(out_shapes)
        
     box_set = get_default_boxes(out_shapes, box_ratios)
 
@@ -278,4 +277,4 @@ if __name__ == '__main__':
         boxes = misc.flatten_list(boxes)
         print('Plotting boxes for shape {shape}. Number of boxes: {n}.'.format(
                 shape=shape, n=len(boxes)))
-        plot_default_boxes(boxes, 'default_boxes', ' '.join(str(s) for s in shape))
+        plot_default_boxes(boxes, 'default_boxes', ' '.join(str(s) for s in shape) + '.jpg')

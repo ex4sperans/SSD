@@ -39,16 +39,21 @@ def random_crop(image, annotation):
     
     return new_image, new_annotation
 
-def random_flip(image, annotation):
+def random_hflip(image, annotation):
 
-    if random.uniform(0, 1) > 0.5:
-        return image, annotation
-    else:
-        flipped_image = np.fliplr(image)
-        height, width = misc.height_and_width(image.shape)
-        flipped_annotation = [(name, boxes.hflip_box(bbox, height, width)) 
-                                          for name, bbox in annotation]
-        return flipped_image, flipped_annotation
+    flipped_image = np.fliplr(image)
+    height, width = misc.height_and_width(image.shape)
+    flipped_annotation = [(name, boxes.hflip_box(bbox, height, width)) 
+                                      for name, bbox in annotation]
+    return flipped_image, flipped_annotation
+
+def random_vflip(image, annotation):
+
+    flipped_image = np.flipud(image)
+    height, width = misc.height_and_width(image.shape)
+    flipped_annotation = [(name, boxes.vflip_box(bbox, height, width)) 
+                                      for name, bbox in annotation]
+    return flipped_image, flipped_annotation    
 
 def random_tile(image, annotation, min_tiles=2, max_tiles=3):
 

@@ -107,6 +107,7 @@ class VOCLoader:
                     return image/255
 
                 self._normalize = divide_255
+
         elif normalization is None:
             pass
         else:
@@ -114,24 +115,19 @@ class VOCLoader:
 
     def _set_augmentation_fn(self, augmentation):
 
-        if isinstance(augmentation, dict):
+        augmentations = {'random_hflip': augmentation_ops.random_hflip,
+                         'random_vflip': augmentation_ops.random_vflip,
+                         'random_tile': augmentation_ops.random_tile,
+                         'random_crop': augmentation_ops.random_crop}
+
+        if isinstance(augmentation, list):
 
             def augment(image, annotation):
-
                             
-                if 'random_flip' in augmentation:
-                    if np.random.uniform() < augmentation['random_flip']:
-                        image, annotation['objects'] = augmentation_ops.random_flip(
-                                                image, annotation['objects'])
-
-                if 'random_tile' in augmentation:
-                    if np.random.uniform() < augmentation['random_tile']:
-                        image, annotation['objects'] = augmentation_ops.random_tile(
-                                                image, annotation['objects'])
-                if 'random_crop' in augmentation:
-                    if np.random.uniform() < augmentation['random_crop']:
-                        image, annotation['objects'] = augmentation_ops.random_crop(
-                                                image, annotation['objects'])
+                for augmentation_type, probability in augmentation:
+                    if np.random.uniform() < probability:
+                        image, annotation['objects'] = \
+                            augmentations[augmentation_type](image, annotation['objects'])
 
                 annotation['file_name'] = 'augmented_' + annotation['file_name']
 
@@ -141,5 +137,5 @@ class VOCLoader:
         elif augmentation is None:
             pass
         else:
-            raise TypeError('`augmentation` have to be an instance of dict.')
+            raise TypeError('`augmentation` have to be an instance of list.')
 

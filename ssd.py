@@ -192,7 +192,7 @@ class SSD:
         self.classification_loss = tf.reduce_mean(classification_loss)
         self.localization_loss = tf.reduce_mean(localization_loss)
         self.l2_loss = tf.add_n(slim.losses.get_regularization_losses())
-        #average over minibatch
+        # average over minibatch
         loss = self.classification_loss + self.localization_loss + self.l2_loss
         return loss
 
@@ -230,8 +230,9 @@ class SSD:
         self.learning_rate = tf.placeholder(dtype=tf.float32)
 
         with tf.variable_scope('Optimizer_' + self.scope):
-            optimizer = tf.train.AdamOptimizer(
-                            learning_rate=self.learning_rate)
+            optimizer = tf.train.MomentumOptimizer(
+                            learning_rate=self.learning_rate,
+                            momentum=0.9)
             grads_and_vars = optimizer.compute_gradients(loss)
             self.train_step = optimizer.apply_gradients(grads_and_vars,
                                                         global_step=self.step)
@@ -267,6 +268,8 @@ class SSD:
         if not hasattr(self, '_sess'):
             config = tf.ConfigProto()
             config.gpu_options.allow_growth = True
+            config.inter_op_parallelism_threads = 8
+            config.intra_op_parallelism_threads = 8
             self._sess = tf.Session(config=config)
         return self._sess
 

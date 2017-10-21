@@ -1,3 +1,7 @@
 __pycache__
 vgg16_weights.npz
 VOC*
+env
+.mypy_cache
+.vscode
+.cache

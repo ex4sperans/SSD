@@ -25,6 +25,7 @@ def non_maximum_supression(confidences, default_boxes, corrections,
 
     background_class = len(class_names)
     default_boxes = misc.flatten_list(default_boxes)
+    confidences = confidences[:, :-1]
     labels = np.argmax(confidences, 1)
     top_confidences = np.amax(confidences, 1)
 
@@ -44,11 +45,11 @@ def non_maximum_supression(confidences, default_boxes, corrections,
         corrections,
         top_confidences):
 
-        if label != background_class:
-            correction = boxes.CenterBox(*correction)
-            non_background_boxes.append(
-                (apply_log_offsets(default_box, correction), label, confidence))
-        if confidence < 0.01:
+        # if label != background_class:
+        correction = boxes.CenterBox(*correction)
+        non_background_boxes.append(
+            (apply_log_offsets(default_box, correction), label, confidence))
+        if confidence < 0.15:
             break
 
     choices = []
