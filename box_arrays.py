@@ -73,7 +73,8 @@ class BoundBoxArray(pd.DataFrame):
                                  columns=BOX_COLUMNS))
 
     def __getattr__(self, attr):
-        """Overrides getattr to return np.array rather than pd.Series object"""
+        """Overrides __getattribute__ to return
+        np.array rather than pd.Series object"""
         value = pd.DataFrame.__getattr__(self, attr)
 
         if attr in BOX_COLUMNS:

@@ -34,4 +34,3 @@ def iou(first, second):
     union = _union(first, second, intersection)
     
     return np.maximum(intersection / (union + 1e-10), 0)
-
