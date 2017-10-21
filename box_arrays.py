@@ -72,11 +72,24 @@ class BoundBoxArray(pd.DataFrame):
                                  index=classnames,
                                  columns=BOX_COLUMNS))
 
-    def rescale(self, scale: tuple):
-        """Rescale accoding to `scale`."""
+    def __getattr__(self, attr):
+        """Overrides getattr to return np.array rather than pd.Series object"""
+        value = pd.DataFrame.__getattr__(self, attr)
 
+        if attr in BOX_COLUMNS:
+            return value.as_matrix()
+        else:
+            return value
+
+    def rescale(self, scale):
+        """Rescale accoding to `scale`."""
         vertical, horizontal = scale
         scale = np.array([horizontal, vertical] * 4)
 
         scaled = self.as_matrix() / scale
         return BoundBoxArray.from_boxes(scaled, classnames=self.index)
+
+    
+    def iou(self, other):
+        """Compute IOU matrix between current array and other"""
+        return iou(self, other)

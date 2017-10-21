@@ -1,27 +1,37 @@
 import numpy as np
 
-def jaccard_overlap(boxes, target_box):
 
-    boundboxes = boxes.as_boundbox_array()
-    target_bbox = target_box.as_boundbox_array()
-    centerboxes = boxes.as_centerbox_array()
-    target_cbox = target_box.as_centerbox_array()
+def _intersection(first, second):
+    """Given two boundbox arrays, computes pairwise intersections 
+    between bouding boxes"""
 
-    w1 = centerboxes.width
-    w2 = target_cbox.width 
-    h1 = centerboxes.height
-    h2 = target_cbox.height
+    intersection_w = (np.add.outer(first.width, second.width) -
+                      (np.maximum.outer(first.x_max, second.x_max) -
+                       np.minimum.outer(first.x_min, second.x_min))
+                     )
+    intersection_h = (np.add.outer(first.height, second.height) -
+                      (np.maximum.outer(first.y_max, second.y_max) -
+                       np.minimum.outer(first.y_min, second.y_min))
+                     )
 
-    intersection_w = (w1 + w2) - (np.maximum(boundboxes.x_max, target_bbox.x_max)\
-                               - np.minimum(boundboxes.x_min, target_bbox.x_min))
-    intersection_h = (h1 + h2) - (np.maximum(boundboxes.y_max, target_bbox.y_max)\
-                               - np.minimum(boundboxes.y_min, target_bbox.y_min))
+    return np.maximum(intersection_w, 0) * np.maximum(intersection_h, 0)
 
-    intersection =  np.maximum(intersection_w, 0)*np.maximum(intersection_h, 0)
-    union = w1 * h1 + w2 * h2 - intersection
 
-    # to avoid division by zero
-    positive_mask = union > 0
-    overlap = (intersection * positive_mask) / union
-    return overlap 
+def _union(first, second, intersection):
+    """Given two boundbox arrays, and precomputed intersection,
+    computes pairwise union between bounding boxes"""
+
+    return (first.width * first.height +
+            second.width * second.height -
+            intersection)
+
+
+def iou(first, second):
+    """Given two boundbox arrays, computes pairwise IOU between
+    bounding boxes"""
+
+    intersection = _intersection(first, second)
+    union = _union(first, second, intersection)
+    
+    return np.maximum(intersection / (union + 1e-10), 0)
 
