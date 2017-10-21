@@ -2,12 +2,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from box_arrays import CenterBoxArray, BoundBoxArray
+from box_arrays import BoundBoxArray
 
 
 @pytest.fixture
 def boundboxes():
     return [(20.0, 30.0, 80.0, 100.0), (70.0, 100.0, 100.0, 200.0)]
+
 
 @pytest.fixture
 def centerboxes():
@@ -15,70 +16,42 @@ def centerboxes():
 
 
 @pytest.fixture
+def boxes(boundboxes, centerboxes):
+    return [bound + center for bound, center in zip(boundboxes, centerboxes)]
+
+
+@pytest.fixture
 def classnames():
     return ["cat", "dog"]
 
 
-def test_boundbox_array_creation(boundboxes, classnames):
-    """Test functionality of BoundBoxArray creation"""
+def test_boundbox_creation(boundboxes, centerboxes, boxes, classnames):
+    """Test creation of BoundBoxArray"""
 
-    boundbox_array = BoundBoxArray.from_boxes(boundboxes, classnames)
+    from_boundboxes = BoundBoxArray.from_boundboxes(boundboxes, classnames)
 
-    assert boundbox_array.shape == (2, 4)
-    assert (boundbox_array.index == classnames).all()
+    assert from_boundboxes.shape == (2, 8)
+    assert (from_boundboxes.index == classnames).all()
 
-    # without classnames
-    boundbox_array = BoundBoxArray.from_boxes(boundboxes)
+    from_centerboxes = BoundBoxArray.from_centerboxes(centerboxes, classnames)
 
-    assert boundbox_array.shape == (2, 4)
-    assert (boundbox_array.index == (0, 1)).all()
+    assert from_boundboxes.equals(from_centerboxes)
 
+    from_boxes = BoundBoxArray.from_boxes(boxes, classnames)
 
-def test_center_array_creation(centerboxes, classnames):
-    """Test functionality of CenterBoxArray creation"""
-
-    centerbox_array = CenterBoxArray.from_boxes(centerboxes, classnames)
-
-    assert centerbox_array.shape == (2, 4)
-    assert (centerbox_array.index == classnames).all()
-
-    # without classnames
-    centerbox_array = CenterBoxArray.from_boxes(centerboxes)
-
-    assert centerbox_array.shape == (2, 4)
-    assert (centerbox_array.index == (0, 1)).all()
+    assert from_boundboxes.equals(from_boxes)
+    assert from_centerboxes.equals(from_boxes)
 
 
-def test_box_conversion(boundboxes, centerboxes, classnames):
-    """Test functionality of conversion between arrays"""
-
-    boundbox_array = BoundBoxArray.from_boxes(boundboxes, classnames)
-    centerbox_array = CenterBoxArray.from_boxes(centerboxes, classnames)
-
-    assert boundbox_array.equals(centerbox_array.as_boundbox_array())
-    assert centerbox_array.equals(boundbox_array.as_centerbox_array())
-
-
-def test_box_rescale(boundboxes, centerboxes):
+def test_box_rescale(boxes):
     """Test functionality of boxes scaling"""
 
     scale = (3, 4)
-    scales = (4, 3, 4, 3)
+    scales = (4, 3) * 4
 
-    boundbox_array = BoundBoxArray.from_boxes(boundboxes)
-    centerbox_array = CenterBoxArray.from_boxes(centerboxes)
+    boundbox_array = BoundBoxArray.from_boxes(boxes)
 
-
-    scaled_boundboxes = [tuple(x / s for x, s in zip(box, scales))
-                         for box in boundboxes]
-    scaled_boundbox_array = BoundBoxArray.from_boxes(scaled_boundboxes)
-
-    scaled_centerboxes = [tuple(x / s for x, s in zip(box, scales))
-                          for box in centerboxes]
-    scaled_centerbox_array = CenterBoxArray.from_boxes(scaled_centerboxes)
+    scaled_boxes = [tuple(x / s for x, s in zip(box, scales)) for box in boxes]
+    scaled_boundbox_array = BoundBoxArray.from_boxes(scaled_boxes)
 
     assert scaled_boundbox_array.equals(boundbox_array.rescale(scale))
-    assert scaled_centerbox_array.equals(centerbox_array.rescale(scale))
-
-    assert np.allclose(boundbox_array.rescale(scale).as_matrix(),
-        centerbox_array.rescale(scale).as_boundbox_array().as_matrix())
