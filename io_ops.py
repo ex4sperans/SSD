@@ -17,7 +17,7 @@ def parse_annotation(annotation):
 
     for obj in root.findall('object'):
         # xmin, ymin, xmax, ymax
-        annotation.append([int(coord.text) for coord in obj.find('bndbox')])
+        boxes.append([int(coord.text) for coord in obj.find('bndbox')])
         classnames.append(obj.find('name').text)
 
     return BoundBoxArray.from_boundboxes(boxes, classnames)
