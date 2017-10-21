@@ -27,7 +27,7 @@ def non_overlapping_boundboxes():
 @pytest.fixture
 def full_and_quarter_boundboxes():
     return ([(0, 0, 100, 100)],
-            [(0, 0, 25, 25)])
+            [(0, 0, 50, 50)])
 
 
 @pytest.fixture
@@ -83,7 +83,5 @@ def test_iou(non_overlapping_boundboxes, full_and_quarter_boundboxes):
     full = BoundBoxArray.from_boundboxes(full)
     quarter = BoundBoxArray.from_boundboxes(quarter)
 
-    # 
-    assert np.allclose(full.iou(quarter), np.array(0.0625))
-    assert np.allclose(quarter.iou(full), np.array(0.0625))
-
+    assert np.allclose(full.iou(quarter), np.array(0.25))
+    assert np.allclose(quarter.iou(full), np.array(0.25))

@@ -21,8 +21,8 @@ def _union(first, second, intersection):
     """Given two boundbox arrays, and precomputed intersection,
     computes pairwise union between bounding boxes"""
 
-    return (first.width * first.height +
-            second.width * second.height -
+    return (np.add.outer(first.width * first.height,
+                         second.width * second.height) -
             intersection)
 
 
