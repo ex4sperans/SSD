@@ -34,3 +34,13 @@ def iou(first, second):
     union = _union(first, second, intersection)
     
     return np.maximum(intersection / (union + 1e-10), 0)
+
+
+def calculate_offsets(default, matched):
+    """Computes offsets between given default boxes and matched boxes"""
+
+    return np.transpose(((matched.x_center - default.x_center) / default.width,
+                         (matched.y_center - default.y_center) / default.height,
+                         np.log(matched.width / default.width),
+                         np.log(matched.height / default.height)))
+
