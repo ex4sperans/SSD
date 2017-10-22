@@ -90,7 +90,26 @@ class BoundBoxArray(pd.DataFrame):
         scaled = self.as_matrix() / scale
         return BoundBoxArray.from_boxes(scaled, classnames=self.index)
 
-    
+    def clip(self,
+             vertical_clip_value=(0, 1),
+             horizontal_clip_value=(0, 1)):
+        """Clips all bounding box to lie in range of `vertical_clip_value`
+            for y axis and `horizontal_clip_value` for x axis"""
+
+        min_vertical, max_vertical = vertical_clip_value
+        min_horizontal, max_horizontal = horizontal_clip_value
+
+        x_min = self.x_min.clip(min=min_horizontal)
+        y_min = self.y_min.clip(min=min_vertical)
+        x_max = self.x_max.clip(max=max_horizontal)
+        y_max = self.y_max.clip(max=max_vertical)
+
+        clipped = np.transpose((x_min, y_min, x_max, y_max))
+
+        return BoundBoxArray.from_boundboxes(clipped, classnames=self.index)
+
     def iou(self, other):
         """Compute IOU matrix between current array and other"""
         return iou(self, other)
+
+    

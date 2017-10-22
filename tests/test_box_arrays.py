@@ -65,6 +65,17 @@ def test_boundbox_rescale(boxes):
     assert scaled_boundbox_array.equals(boundbox_array.rescale(scale))
 
 
+def test_boundbox_clipping(boxes):
+
+    boundbox_array = BoundBoxArray.from_boxes(boxes)
+
+    clipped = boundbox_array.clip((40, 50), (40, 50))
+    assert (clipped.x_min >= 40).all()
+    assert (clipped.y_min >= 40).all()
+    assert (clipped.x_max <= 50).all()
+    assert (clipped.y_max <= 50).all()
+
+
 def test_iou(non_overlapping_boundboxes, full_and_quarter_boundboxes):
     """Test IOU calculation"""
 
