@@ -1,8 +1,10 @@
+import numpy as np
 from scipy.misc import imresize
 
 from misc import height_and_width
 from io_ops import parse_annotation, load_image
 from plotting import plot_image, plot_with_bboxes
+from box_ops import calculate_offsets
 
 
 class AnnotatedImage: 
@@ -12,7 +14,7 @@ class AnnotatedImage:
         """Initialize AnnotatedImage from .jpg image and .xml annotation"""
 
         return cls(image=load_image(image),
-            bboxes=parse_annotation(annotation))
+                   bboxes=parse_annotation(annotation))
 
     def __init__(self, image, bboxes, filename=None):
         """Initialize AnnotatedImage object"""
@@ -63,6 +65,31 @@ class AnnotatedImage:
         return AnnotatedImage(imresize(self.image, size),
                               self.bboxes.rescale(scale),
                               self.filename)
+
+    def matches_and_offsets(self, default_boxes, threshold, class_mapping):
+        """Performs matching step."""
+
+        iou = default_boxes.iou(self.bboxes)
+        # ensure that each box is matched with
+        # single ground-truth box with top IOU
+        top_match = iou.max(axis=1, keepdims=True)
+        iou *= (iou == top_match)
+        matched = iou > threshold
+
+        # labels
+        classmask = np.array([class_mapping[classname]
+                              for classname in self.bboxes.index],
+                             dtype=np.int32)
+        labels = (matched * classmask).sum(axis=1, dtype=np.int32)
+
+        # offsets
+        any_matched = matched.any(axis=1, keepdims=True)
+        compressed_offsets = calculate_offsets(default_boxes[any_matched],
+                                               self.bboxes.boundboxes)
+        offsets = np.zeros((any_matched.size, 4), dtype=np.float32)
+        offsets[any_matched] = compressed_offsets
+
+        return labels, offsets
 
     def plot(self, save_path, filename=None):
         """Plots and save image"""

@@ -27,7 +27,7 @@ def test_image_creation(annotated_image):
 
     loaded = AnnotatedImage.load(IMAGE, ANNOTATION)
     assert (annotated_image.image == loaded.image).all()
-    assert (annotated_image.bboxes.equals(loaded.bboxes))
+    assert annotated_image.bboxes.equals(loaded.bboxes)
 
 
 def test_image_resize(annotated_image):
@@ -45,7 +45,7 @@ def test_image_normalization(annotated_image):
 
     scale = 255
     normalized = annotated_image.normalize(255)
-    
+
     assert ((0 <= normalized.image) & (normalized.image <= 1)).all()
     assert normalized.bboxes.equals(annotated_image.bboxes)
 

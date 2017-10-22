@@ -4,22 +4,32 @@ import pandas as pd
 from box_ops import iou
 
 
-BOUNDBOX_COLUMNS = ["x_min", "y_min", "x_max", "y_max"]
-CENTERBOX_COLUMNS = ["x_center", "y_center", "width", "height"]
-BOX_COLUMNS = BOUNDBOX_COLUMNS + CENTERBOX_COLUMNS
-
-BOUNDBOX_TO_CENTERBOX = np.array([[ 0.5,    0,  -1,    0],
-                                  [   0,  0.5,   0,   -1],
-                                  [ 0.5,    0,   1,    0],
-                                  [   0,  0.5,   0,    1]], dtype=np.float32)
-
-CENTERBOX_TO_BOUNDBOX = np.array([[   1,    0,    1,    0],
-                                  [   0,    1,    0,    1],
-                                  [-0.5,    0,  0.5,    0],
-                                  [   0, -0.5,    0,  0.5]], dtype=np.float32)
-
 
 class BoundBoxArray(pd.DataFrame):
+
+    BOUNDBOX_COLUMNS = ["x_min", "y_min", "x_max", "y_max"]
+    CENTERBOX_COLUMNS = ["x_center", "y_center", "width", "height"]
+    BOX_COLUMNS = BOUNDBOX_COLUMNS + CENTERBOX_COLUMNS
+
+    BOUNDBOX_TO_CENTERBOX = np.array([[ 0.5,    0,  -1,    0],
+                                      [   0,  0.5,   0,   -1],
+                                      [ 0.5,    0,   1,    0],
+                                      [   0,  0.5,   0,    1]],
+                                     dtype=np.float32)
+
+    CENTERBOX_TO_BOUNDBOX = np.array([[   1,    0,    1,    0],
+                                      [   0,    1,    0,    1],
+                                      [-0.5,    0,  0.5,    0],
+                                      [   0, -0.5,    0,  0.5]],
+                                     dtype=np.float32)
+
+    @property
+    def boundboxes(self):
+        return self[self.__class__.BOUNDBOX_COLUMNS]
+
+    @property
+    def centerboxes(self):
+        return self[self.__class__.CENTERBOX_COLUMNS]
 
     @classmethod
     def from_boxes(cls, boxes, classnames=None):
@@ -35,7 +45,7 @@ class BoundBoxArray(pd.DataFrame):
 
         return cls(boxes,
                    index=classnames,
-                   columns=BOX_COLUMNS,
+                   columns=cls.BOX_COLUMNS,
                    dtype=np.float32)
 
     @classmethod
@@ -48,12 +58,12 @@ class BoundBoxArray(pd.DataFrame):
             classnames: list of classnames for bounding boxes, optional
         """
         boundboxes = np.array(boxes, dtype=np.float32)
-        centerboxes = np.matmul(boundboxes, BOUNDBOX_TO_CENTERBOX)
+        centerboxes = np.matmul(boundboxes, cls.BOUNDBOX_TO_CENTERBOX)
         boxes = np.hstack((boundboxes, centerboxes))
 
         return cls(boxes,
                    index=classnames,
-                   columns=BOX_COLUMNS,
+                   columns=cls.BOX_COLUMNS,
                    dtype=np.float32)
 
     @classmethod
@@ -66,12 +76,12 @@ class BoundBoxArray(pd.DataFrame):
             classnames: list of classnames for bounding boxes, optional
         """
         centerboxes = np.array(boxes, dtype=np.float32)
-        boundboxes = np.matmul(centerboxes, CENTERBOX_TO_BOUNDBOX)
+        boundboxes = np.matmul(centerboxes, cls.CENTERBOX_TO_BOUNDBOX)
         boxes = np.hstack((boundboxes, centerboxes))
 
         return cls(boxes,
                    index=classnames,
-                   columns=BOX_COLUMNS,
+                   columns=cls.BOX_COLUMNS,
                    dtype=np.float32)
 
     def __getattr__(self, attr):
@@ -79,7 +89,7 @@ class BoundBoxArray(pd.DataFrame):
         np.array rather than pd.Series object"""
         value = pd.DataFrame.__getattr__(self, attr)
 
-        if attr in BOX_COLUMNS:
+        if attr in self.__class__.BOX_COLUMNS:
             return value.as_matrix()
         else:
             return value
