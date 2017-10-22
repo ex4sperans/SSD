@@ -36,7 +36,6 @@ def classnames():
 
 
 def test_boundbox_creation(boundboxes, centerboxes, boxes, classnames):
-    """Test creation of BoundBoxArray"""
 
     from_boundboxes = BoundBoxArray.from_boundboxes(boundboxes, classnames)
 
@@ -54,7 +53,6 @@ def test_boundbox_creation(boundboxes, centerboxes, boxes, classnames):
 
 
 def test_boundbox_rescale(boxes):
-    """Test functionality of boxes scaling"""
 
     scale = (3, 4)
     scales = (4, 3) * 4

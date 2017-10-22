@@ -10,7 +10,6 @@ DIRNAME = os.path.dirname(__file__)
 
 
 def test_parse_annotation():
-    """Test annotation parsing"""
 
     annotation = os.path.join(DIRNAME, "data", "000010.xml")
     bboxes = io_ops.parse_annotation(annotation)
