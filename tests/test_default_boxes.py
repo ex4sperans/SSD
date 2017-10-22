@@ -37,3 +37,8 @@ def test_get_default_boxes():
 
     assert isinstance(default_boxes, BoundBoxArray)
     assert len(default_boxes) == 3 * 3 * 2 + 2 * 3 * 2
+    # test that all boxes are clipped
+    assert (default_boxes.x_min >= 0).all()
+    assert (default_boxes.y_min >= 0).all()
+    assert (default_boxes.x_max <= 1).all()
+    assert (default_boxes.y_max <= 1).all()

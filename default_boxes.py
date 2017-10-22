@@ -68,4 +68,4 @@ def get_default_boxes(out_shapes, box_ratios):
                        for box_ratio in layer_box_ratios]
         default_boxes.append(layer_boxes)
 
-    return BoundBoxArray.from_centerboxes(flatten_list(default_boxes))
+    return BoundBoxArray.from_centerboxes(flatten_list(default_boxes)).clip()

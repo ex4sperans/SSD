@@ -44,7 +44,7 @@ class AnnotatedImage:
     def normalize(self, scale):
         """Normalize image according to `scale`"""
         normalized = self._image / scale
-    
+
         return AnnotatedImage(normalized, self._bboxes, self._filename)
 
     def resize(self, size):
@@ -62,17 +62,17 @@ class AnnotatedImage:
 
         filename = filename or self.filename
         if not filename:
-            raise ValueError("`filename` should be specified either "
-                             "on image creation or when calling this function.")
+            raise ValueError("`filename` should be specified either on image"
+                             " creation or when calling this function.")
 
         plot_image(self.image, save_path, filename)
-    
+
     def plot_bboxes(self, save_path, filename=None):
         """Plots and save image with bounding boxes"""
 
         filename = filename or self.filename
         if not filename:
-            raise ValueError("`filename` should be specified either "
-                             "on image creation or when calling this function.")
+            raise ValueError("`filename` should be specified either on image"
+                             " creation or when calling this function.")
 
         plot_with_bboxes(self.image, self.bboxes, save_path, filename)

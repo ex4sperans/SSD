@@ -26,16 +26,17 @@ class BoundBoxArray(pd.DataFrame):
         """Initialize BoundBoxArray from list or numpy array of boxes.
 
         Args:
-            boxes: list of tuples: (x_min, y_min, x_max, y_max, 
+            boxes: list of tuples: (x_min, y_min, x_max, y_max,
                                     x_center, y_center, width, height),
                 or similar numpy array
             classnames: list of classnames for bounding boxes, optional
         """
         boxes = np.array(boxes, dtype=np.float32)
 
-        return cls(pd.DataFrame.from_records(boxes,
-                                             index=classnames,
-                                             columns=BOX_COLUMNS))
+        return cls(boxes,
+                   index=classnames,
+                   columns=BOX_COLUMNS,
+                   dtype=np.float32)
 
     @classmethod
     def from_boundboxes(cls, boxes, classnames=None):
@@ -50,9 +51,10 @@ class BoundBoxArray(pd.DataFrame):
         centerboxes = np.matmul(boundboxes, BOUNDBOX_TO_CENTERBOX)
         boxes = np.hstack((boundboxes, centerboxes))
 
-        return cls(pd.DataFrame.from_records(boxes,
-                                             index=classnames,
-                                             columns=BOX_COLUMNS))
+        return cls(boxes,
+                   index=classnames,
+                   columns=BOX_COLUMNS,
+                   dtype=np.float32)
 
     @classmethod
     def from_centerboxes(cls, boxes, classnames=None):
@@ -67,10 +69,10 @@ class BoundBoxArray(pd.DataFrame):
         boundboxes = np.matmul(centerboxes, CENTERBOX_TO_BOUNDBOX)
         boxes = np.hstack((boundboxes, centerboxes))
 
-        return cls(pd.DataFrame
-                   .from_records(boxes,
-                                 index=classnames,
-                                 columns=BOX_COLUMNS))
+        return cls(boxes,
+                   index=classnames,
+                   columns=BOX_COLUMNS,
+                   dtype=np.float32)
 
     def __getattr__(self, attr):
         """Overrides __getattribute__ to return
