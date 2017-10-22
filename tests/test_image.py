@@ -48,3 +48,13 @@ def test_image_normalization(annotated_image):
     
     assert ((0 <= normalized.image) & (normalized.image <= 1)).all()
     assert normalized.bboxes.equals(annotated_image.bboxes)
+
+
+def test_bboxes_normalization(annotated_image):
+
+    normalized = annotated_image.normalize_bboxes()
+
+    assert (normalized.bboxes.x_min >= 0).all()
+    assert (normalized.bboxes.y_min >= 0).all()
+    assert (normalized.bboxes.x_max <= 1).all()
+    assert (normalized.bboxes.y_max <= 1).all()

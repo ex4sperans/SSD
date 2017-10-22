@@ -47,15 +47,22 @@ class AnnotatedImage:
 
         return AnnotatedImage(normalized, self._bboxes, self._filename)
 
+    def normalize_bboxes(self):
+        """Normalize bboxes to be in range of (0, 1) for both axes"""
+
+        return AnnotatedImage(self.image,
+                              self.bboxes.rescale(self.size),
+                              self.filename)
+
     def resize(self, size):
         """Resize image and bboxes according to `size`"""
         new_height, new_width = size
         height, width = height_and_width(self.shape)
         scale = (height / new_height, width / new_width)
 
-        return AnnotatedImage(imresize(self._image, size),
-                              self._bboxes.rescale(scale),
-                              self._filename)
+        return AnnotatedImage(imresize(self.image, size),
+                              self.bboxes.rescale(scale),
+                              self.filename)
 
     def plot(self, save_path, filename=None):
         """Plots and save image"""
