@@ -93,6 +93,15 @@ class BoundBoxArray(pd.DataFrame):
             return value.as_matrix()
         else:
             return value
+    
+    def __getitem__(self, key):
+        """Overrides __getitem__ to return BoundBoxArray
+        rather than pd.DataFrame"""
+        data = pd.DataFrame.__getitem__(self, key)
+        if isinstance(data, pd.DataFrame):
+            return BoundBoxArray(data)
+        else:
+            return data
 
     def rescale(self, scale):
         """Rescale accoding to `scale`."""

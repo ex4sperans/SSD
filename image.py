@@ -66,7 +66,7 @@ class AnnotatedImage:
                               self.bboxes.rescale(scale),
                               self.filename)
 
-    def matches_and_offsets(self, default_boxes, threshold, class_mapping):
+    def labels_and_offsets(self, default_boxes, threshold, class_mapping):
         """Performs matching step."""
 
         iou = default_boxes.iou(self.bboxes)
@@ -83,11 +83,12 @@ class AnnotatedImage:
         labels = (matched * classmask).sum(axis=1, dtype=np.int32)
 
         # offsets
-        any_matched = matched.any(axis=1, keepdims=True)
-        compressed_offsets = calculate_offsets(default_boxes[any_matched],
-                                               self.bboxes.boundboxes)
-        offsets = np.zeros((any_matched.size, 4), dtype=np.float32)
-        offsets[any_matched] = compressed_offsets
+        default_matched = matched.any(axis=1)
+        box_matched = matched.any(axis=0)
+        compressed_offsets = calculate_offsets(default_boxes[default_matched],
+                                               self.bboxes[box_matched])
+        offsets = np.zeros((default_matched.size, 4), dtype=np.float32)
+        offsets[default_matched] = compressed_offsets
 
         return labels, offsets
 

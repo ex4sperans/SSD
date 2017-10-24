@@ -1,8 +1,10 @@
 import os
 
+import numpy as np
 import pytest
 
 from image import AnnotatedImage
+from box_arrays import BoundBoxArray
 from io_ops import load_image, parse_annotation
 
 
@@ -58,3 +60,30 @@ def test_bboxes_normalization(annotated_image):
     assert (normalized.bboxes.y_min >= 0).all()
     assert (normalized.bboxes.x_max <= 1).all()
     assert (normalized.bboxes.y_max <= 1).all()
+
+def test_matches_and_offsets():
+
+    default_boxes = BoundBoxArray.from_boundboxes([(0, 0, 0.5, 0.5),
+                                                   (0, 0, 1.0, 1.0),
+                                                   (0.45, 0.45, 0.9, 0.9)])
+
+    bboxes = BoundBoxArray.from_boundboxes([(0, 0, 150, 150),
+                                            (0, 0, 120, 120),
+                                            (150, 150, 300, 300)],
+                                           classnames=["cat", "pig", "dog"])
+    class_mapping = dict(cat=1, pig=2, dog=3)
+    threshold = 0.5
+
+    image = AnnotatedImage(np.ones((300, 300, 3)), bboxes)
+    image = image.normalize_bboxes()
+
+    labels, offsets = image.labels_and_offsets(default_boxes,
+                                               threshold,
+                                               class_mapping)
+
+    # cat matched to first, dog matched to third
+    # pig wasn't matched since cat has higher IOU
+    assert (labels == [1, 0, 3]).all()
+    # cat matched perfectly, second default box
+    # wasn't matched
+    assert (offsets[[0, 1]] == [0, 0, 0, 0]).all()
