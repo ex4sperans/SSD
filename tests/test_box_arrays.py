@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from box_arrays import BoundBoxArray
+from containers.box_arrays import BoundBoxArray
 
 
 @pytest.fixture

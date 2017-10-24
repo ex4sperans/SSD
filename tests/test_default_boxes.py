@@ -1,7 +1,7 @@
 import pytest
 
-from default_boxes import get_default_boxes, get_default_box
-from box_arrays import BoundBoxArray
+from ops.default_boxes import get_default_boxes, get_default_box
+from containers.box_arrays import BoundBoxArray
 
 
 def test_get_default_box():

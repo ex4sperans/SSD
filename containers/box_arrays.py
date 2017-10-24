@@ -1,8 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from box_ops import iou
-
+from ops.box_ops import iou
 
 
 class BoundBoxArray(pd.DataFrame):

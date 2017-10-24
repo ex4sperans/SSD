@@ -1,7 +1,7 @@
 from math import sqrt
 
-from misc import height_and_width, flatten_list
-from box_arrays import BoundBoxArray
+from ops.misc import height_and_width, flatten_list
+from containers.box_arrays import BoundBoxArray
 
 
 def box_scale(k, m, s_min=0.2, s_max=0.9):

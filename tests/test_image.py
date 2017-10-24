@@ -3,9 +3,9 @@ import os
 import numpy as np
 import pytest
 
-from image import AnnotatedImage
-from box_arrays import BoundBoxArray
-from io_ops import load_image, parse_annotation
+from containers.image import AnnotatedImage
+from containers.box_arrays import BoundBoxArray
+from ops.io_ops import load_image, parse_annotation
 
 
 DIRNAME = os.path.dirname(__file__)
@@ -61,7 +61,7 @@ def test_bboxes_normalization(annotated_image):
     assert (normalized.bboxes.x_max <= 1).all()
     assert (normalized.bboxes.y_max <= 1).all()
 
-def test_matches_and_offsets():
+def test_labels_and_offsets():
 
     default_boxes = BoundBoxArray.from_boundboxes([(0, 0, 0.5, 0.5),
                                                    (0, 0, 1.0, 1.0),

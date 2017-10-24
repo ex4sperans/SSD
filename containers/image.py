@@ -1,10 +1,10 @@
 import numpy as np
 from scipy.misc import imresize
 
-from misc import height_and_width
-from io_ops import parse_annotation, load_image
-from plotting import plot_image, plot_with_bboxes
-from box_ops import calculate_offsets
+from ops.misc import height_and_width
+from ops.io_ops import parse_annotation, load_image
+from ops.plotting import plot_image, plot_with_bboxes
+from ops.box_ops import calculate_offsets
 
 
 class AnnotatedImage: 

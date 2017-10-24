@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import io_ops
+from ops import io_ops
 
 DIRNAME = os.path.dirname(__file__)
 

@@ -2,7 +2,7 @@ import os
 
 from matplotlib import pyplot as plt
 
-from misc import height_and_width
+from ops.misc import height_and_width
 
 
 def plot_image(image, save_path=None, file_name=None, dpi=800, save=True):

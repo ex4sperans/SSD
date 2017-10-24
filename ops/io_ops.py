@@ -4,7 +4,7 @@ import fnmatch
 from scipy.misc import imread
 import xml.etree.ElementTree as xml_parser
 
-from box_arrays import BoundBoxArray
+from containers.box_arrays import BoundBoxArray
 
 
 def parse_annotation(annotation):
