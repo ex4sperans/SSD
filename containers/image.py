@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.misc import imresize
 
-from ops.misc import height_and_width
+from ops.misc import height_and_width, file_name
 from ops.io_ops import parse_annotation, load_image
 from ops.plotting import plot_image, plot_with_bboxes
 from ops.box_ops import calculate_offsets
@@ -14,14 +14,19 @@ class AnnotatedImage:
         """Initialize AnnotatedImage from .jpg image and .xml annotation"""
 
         return cls(image=load_image(image),
-                   bboxes=parse_annotation(annotation))
+                   bboxes=parse_annotation(annotation),
+                   filename=file_name(image))
 
-    def __init__(self, image, bboxes, filename=None):
+    def __init__(self, image, bboxes, filename=None,
+                 bboxes_normalization_scale=(1, 1)):
         """Initialize AnnotatedImage object"""
 
         self._image = image
         self._bboxes = bboxes
         self._filename = filename
+        # keep scale to be able to convert
+        # normalized bboxes to image scale
+        self._bboxes_normalization_scale = bboxes_normalization_scale
 
     @property
     def image(self):
@@ -54,6 +59,17 @@ class AnnotatedImage:
 
         return AnnotatedImage(self.image,
                               self.bboxes.rescale(self.size),
+                              self.filename,
+                              self.size)
+
+    def recover_bboxes(self):
+        """Recover bboxes to represent size in pixels"""
+
+        height, width = self._bboxes_normalization_scale
+        scale = (1 / height, 1 / width)
+
+        return AnnotatedImage(self.image,
+                              self.bboxes.rescale(scale),
                               self.filename)
 
     def resize(self, size):
@@ -72,8 +88,9 @@ class AnnotatedImage:
         iou = default_boxes.iou(self.bboxes)
         # ensure that each box is matched with
         # single ground-truth box with top IOU
-        top_match = iou.max(axis=1, keepdims=True)
-        iou *= (iou == top_match)
+        top_default_match = iou.max(axis=1, keepdims=True)
+        top_box_match = iou.max(axis=0, keepdims=True)
+        iou *= (iou == top_default_match) & (iou == top_box_match)
         matched = iou > threshold
 
         # labels

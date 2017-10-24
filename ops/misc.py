@@ -28,14 +28,6 @@ def height_and_width(shape):
 def load_image(image_path):
     return imread(image_path)
 
-def save_image(image_path, image):
-    imsave(image_path, image)
-
-def load_json(file_path):
-        with open(file_path, 'r') as f:
-            data = json.load(f)
-        return data
-
 def resize(image, new_shape):
         return imresize(image, new_shape, preserve_range=True) 
 

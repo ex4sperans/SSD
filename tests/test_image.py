@@ -61,6 +61,11 @@ def test_bboxes_normalization(annotated_image):
     assert (normalized.bboxes.x_max <= 1).all()
     assert (normalized.bboxes.y_max <= 1).all()
 
+    original = normalized.recover_bboxes()
+
+    assert np.allclose(original.bboxes, annotated_image.bboxes)
+
+
 def test_labels_and_offsets():
 
     default_boxes = BoundBoxArray.from_boundboxes([(0, 0, 0.5, 0.5),
