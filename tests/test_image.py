@@ -9,8 +9,8 @@ from ops.io_ops import load_image, parse_annotation
 
 
 DIRNAME = os.path.dirname(__file__)
-IMAGE = os.path.join(DIRNAME, "data", "000010.jpg")
-ANNOTATION = os.path.join(DIRNAME, "data", "000010.xml")
+IMAGE = os.path.join(DIRNAME, "mini_voc/test/images", "000010.jpg")
+ANNOTATION = os.path.join(DIRNAME, "mini_voc/test/annotations", "000010.xml")
 
 
 @pytest.fixture

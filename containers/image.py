@@ -52,7 +52,7 @@ class AnnotatedImage:
     def normalize(self, scale):
         """Normalize image according to `scale`"""
 
-        return AnnotatedImage(self._image / scale,
+        return AnnotatedImage(np.divide(self._image, scale, dtype=np.float32),
                               self.bboxes,
                               self.filename,
                               self._bboxes_normalized)
@@ -78,7 +78,7 @@ class AnnotatedImage:
 
     def resize(self, size):
         """Resize image and bboxes according to `size`"""
-        new_height, new_width = size
+        new_height, new_width = height_and_width(size)
         height, width = height_and_width(self.shape)
         scale = (height / new_height, width / new_width)
 

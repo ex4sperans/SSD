@@ -39,15 +39,40 @@ class VOCDataset:
 
     colormap = dict(zip(classnames, np.linspace(0, 1, number_of_classes)))
 
-    def __init__(self, path_to_images, path_to_annotations):
+    def __init__(self, path_to_images, path_to_annotations,
+                 resize_to=None, name="VOC", max_samples=None):
+        """Create VOC-like dataset.
+
+        Args:
+            path_to_images: path to folder with .jpg images
+            path_to_annotations: path to folder with annotations in .xml
+                format. Annotations assumed to have the same names as
+                correspoding images.
+            resize_to: image size to resize to.
+            name: optional name for dataset
+            max_samples: maximum number of (image, annotation) pairs to load.
+                Suitable for debugging/testing.
+        """
+
+        self.name = name
 
         images = sorted(find_files(path_to_images, "*.jpg"))
         annotations = sorted(find_files(path_to_annotations, "*.xml"))
 
-        progressbar = tqdm(zip(images, annotations),
-                           ncols=75, desc="Loading VOC")
-        self.images = [AnnotatedImage.load(image, annotation)
-                       for image, annotation in progressbar]
+        if max_samples:
+            images = images[:max_samples]
+            annotations = annotations[:max_samples]
+
+        self.images = []
+
+        for image, annotation in tqdm(zip(images, annotations), ncols=75,
+                                      desc="Loading {}".format(self.name)):
+            image = AnnotatedImage.load(image, annotation)
+
+            if resize_to:
+                image = image.resize(resize_to)
+
+            self.images.append(image)
 
     def __iter__(self):
         return iter(self.images)

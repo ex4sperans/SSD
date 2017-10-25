@@ -22,13 +22,17 @@ def flatten_list(nested_list):
 
 
 def height_and_width(shape):
+    """Retrieve height and width from given shape"""
     if len(shape) == 4:
         return shape[1], shape[2]
     elif len(shape) == 3:
         return shape[0], shape[1]
+    elif len(shape) == 2:
+        return tuple(shape)
     else:
-        raise ValueError('Could not infer height and'\
-            ' width from shape {shape}.'.format(shape=shape))
+        raise ValueError("Could not infer height and "
+                         "width from shape {shape}."
+                         .format(shape=shape))
 
 
 def load_image(image_path):

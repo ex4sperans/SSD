@@ -11,7 +11,7 @@ DIRNAME = os.path.dirname(__file__)
 
 def test_parse_annotation():
 
-    annotation = os.path.join(DIRNAME, "data", "000010.xml")
+    annotation = os.path.join(DIRNAME, "mini_voc/test/annotations", "000010.xml")
     bboxes = io_ops.parse_annotation(annotation)
 
     assert (bboxes.index == ["horse", "person"]).all()
@@ -20,6 +20,6 @@ def test_parse_annotation():
 
 def test_find_files():
 
-    files = list(io_ops.find_files(os.path.join(DIRNAME, "data"), "*.xml"))
+    files = list(io_ops.find_files(os.path.join(DIRNAME, "mini_voc"), "*.xml"))
 
-    assert len(files) == 1
+    assert len(files) == 6

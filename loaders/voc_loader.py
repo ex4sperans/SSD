@@ -1,141 +1,83 @@
-import os
-import xml.etree.ElementTree as xml_parser
 import random
-import functools
 
 import numpy as np
 
-import boxes
-import misc
-import augmentation_ops
+from datasets.voc_dataset import VOCDataset
+
 
 class VOCLoader:
 
-    def __init__(self, dataset_params_path='voc_dataset_params.json',
-        preprocessing=None, normalization=None, augmentation=None):
+    def __init__(self, train_images_path, train_annotations_path,
+                 test_images_path, test_annotations_path,
+                 default_boxes, resize_to, matching_threshold,
+                 max_samples=None):
 
-        self.dataset_params = misc.load_json(dataset_params_path)
-        self.train_images = misc.find_files(
-            self.dataset_params['train']['images'], '*.jpg')
-        self.train_annotations = misc.find_files(
-            self.dataset_params['train']['annotations'], '*.xml')
-        self.test_images = misc.find_files(
-            self.dataset_params['test']['images'], '*.jpg')
-        self.test_annotations = misc.find_files(
-            self.dataset_params['test']['annotations'], '*.xml')
+        """Create loader for VOC-like dataset.
 
-        self.train_set = list(zip(self.train_images, self.train_annotations))
-        self.test_set = list(zip(self.test_images, self.test_annotations))
+        Args:
+            path_to_images: path to folder with train .jpg images
+            path_to_annotations: path to folder with train annotations
+                in .xml format. Annotations assumed to have
+                the same names as correspoding images.
+            path_to_images: path to folder with test .jpg images
+            path_to_annotations: path to folder with test annotations in .xml
+                format. Annotations assumed to have the same names as
+                correspoding images.
+            default_boxes: an BoundBoxArray instance with default boxes.
+            resize_to: image size to resize to.
+            matching_treshold: IOU threshold to match bboxes to default boxes
+            max_samples: maximum number of (image, annotation) pairs to load.
+                Suitable for debugging/testing.
+        """
 
-        self._set_preprocessing_fn(preprocessing)
-        self._set_normalization_fn(normalization)
-        self._set_augmentation_fn(augmentation)
 
-        print('\nCreated loader for VOC dataset.')
-        print('Loaded params from {path}'.format(path=dataset_params_path))
-        print('Size of train set: {size}'.format(size=len(self.train_set)))
-        print('Size of test set: {size}'.format(size=len(self.test_set)))
-        print('Preprocessing: {}'.format(preprocessing))
-        print('Normalization: {}'.format(normalization))
-        print('Augmentation: {}'.format(augmentation))
+        self._train = VOCDataset(train_images_path, train_annotations_path,
+                                 max_samples=max_samples, name="VOC_train",
+                                 resize_to=resize_to)
+        self._test = VOCDataset(test_images_path, test_annotations_path,
+                                max_samples=max_samples, name="VOC_test",
+                                resize_to=resize_to)
+
+        self.default_boxes = default_boxes
+        self.resize_to = resize_to
+        self.matching_threshold = matching_threshold
+
+    def train_batch(self, batch_size):
+        """Construct new train minibatch
         
-    @staticmethod
-    def parse_annotation(annotation_path):
-        root = xml_parser.parse(annotation_path).getroot()
-        annotation = dict()
-        annotation['file_name'] = root.find('filename').text
-        annotation['objects'] = list()
-        for obj in root.findall('object'):
-            #xmin, ymin, xmax, ymax
-            bbox = boxes.BoundBox(*[int(coord.text) for coord in obj.find('bndbox')])
-            annotation['objects'].append((obj.find('name').text, bbox))
-        return annotation
+        Returns the following tuple:
+            images: (batch_size, height, width, 3)
+            labels: (batch_size, n_default_boxes)
+            offsets: (batch_size, n_default_boxes, 4)
+        """
 
-    def new_batch(self, batch_size, dataset, augment=False):
+        images_batch = []
+        labels_batch = []
+        offsets_batch = []
+
+        for annotated_image in random.sample(self._train.images, batch_size):
+
+            normalized = (annotated_image
+                          .normalize(255)
+                          .normalize_bboxes())
+
+            images_batch.append(normalized.image)
+
+            labels, offsets = normalized.labels_and_offsets(
+                                        default_boxes=self.default_boxes,
+                                        threshold=self.matching_threshold,
+                                        class_mapping=VOCDataset.class_mapping)
+
+            labels_batch.append(labels)
+            offsets_batch.append(offsets)
+
+        return (np.array(images_batch, dtype=np.float32),
+                np.array(labels_batch, dtype=np.int32),
+                np.array(offsets_batch, dtype=np.float32))
+
+    def train_iterator(self, batch_size, iterations):
+        """A generator to produce batches from train set"""
+
+        for iteration in range(iterations):
+            yield self.train_batch(batch_size)
     
-        batch = random.sample(dataset, batch_size)
-        batch = [(misc.load_image(image), VOCLoader.parse_annotation(annotation))
-                for image, annotation in batch]
-
-        if hasattr(self, '_preprocess'):
-            batch = [self._preprocess(image, annotation) for image, annotation in batch]
-
-        if hasattr(self, '_normalize'):
-            batch = [(self._normalize(image), annotation) for image, annotation in batch]
-
-        if hasattr(self, '_augment') and augment:
-            batch = [self._augment(image, annotation) for image, annotation in batch]            
-
-        return batch
-
-    def new_train_batch(self, batch_size, augment=True):
-        return self.new_batch(batch_size, self.train_set, augment=augment)
-
-    def new_test_batch(self, batch_size):
-        return self.new_batch(batch_size, self.test_set)
-
-    def _set_preprocessing_fn(self, preprocessing):
-        if isinstance(preprocessing, tuple):
-            preprocessing_type, preprocessing_params = preprocessing
-            if preprocessing_type == 'resize':
-                height, width = misc.height_and_width(preprocessing_params)
-
-                def _preprocess(image, annotation):
-                    image_height, image_width = misc.height_and_width(image.shape)
-                    image = misc.resize(image, preprocessing_params)
-                    process_box = functools.partial(
-                                                    boxes.resize_box,
-                                                    orig_height=image_height,
-                                                    orig_width=image_width,
-                                                    new_height=height,
-                                                    new_width=width)
-                    annotation['objects'] = [(class_name, process_box(box))
-                                            for class_name, box in annotation['objects']]
-                    return image, annotation
-
-                self._preprocess = _preprocess
-        elif preprocessing is None:
-            pass
-        else:
-            raise TypeError('`preprocessing` have to be an instance of tuple.')
-
-    def _set_normalization_fn(self, normalization):
-        if isinstance(normalization, str):
-            if normalization == 'divide_255':
-
-                def divide_255(image):
-                    return image/255
-
-                self._normalize = divide_255
-
-        elif normalization is None:
-            pass
-        else:
-            raise TypeError('`normalization` have to be an instance of string.')
-
-    def _set_augmentation_fn(self, augmentation):
-
-        augmentations = {'random_hflip': augmentation_ops.random_hflip,
-                         'random_vflip': augmentation_ops.random_vflip,
-                         'random_tile': augmentation_ops.random_tile,
-                         'random_crop': augmentation_ops.random_crop}
-
-        if isinstance(augmentation, list):
-
-            def augment(image, annotation):
-                            
-                for augmentation_type, probability in augmentation:
-                    if np.random.uniform() < probability:
-                        image, annotation['objects'] = \
-                            augmentations[augmentation_type](image, annotation['objects'])
-
-                annotation['file_name'] = 'augmented_' + annotation['file_name']
-
-                return image, annotation
-
-            self._augment = augment
-        elif augmentation is None:
-            pass
-        else:
-            raise TypeError('`augmentation` have to be an instance of list.')
-
