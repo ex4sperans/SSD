@@ -5,4 +5,4 @@ env
 .mypy_cache
 .vscode
 .cache
-.ipynb_checkpoints
+*checkpoint.ipynb
