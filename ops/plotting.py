@@ -24,8 +24,6 @@ def plot_image(image, save_path=None, file_name=None, dpi=800, save=True):
         return fig, ax
 
 
-
-
 def plot_with_bboxes(image, bboxes, colormap, save_path, file_name, dpi=800):
 
     def add_bboxes(ax, bboxes, colormap, image_shape, clamp=15):
