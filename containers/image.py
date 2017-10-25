@@ -1,13 +1,14 @@
 import numpy as np
 from scipy.misc import imresize
 
-from ops.misc import height_and_width, file_name
+from ops.misc import height_and_width, file_name, reverse_dict
 from ops.io_ops import parse_annotation, load_image
 from ops.plotting import plot_image, plot_with_bboxes
 from ops.box_ops import calculate_offsets
+from containers.box_arrays import BoundBoxArray
 
 
-class AnnotatedImage: 
+class AnnotatedImage:
 
     @classmethod
     def load(cls, image, annotation):
@@ -89,8 +90,7 @@ class AnnotatedImage:
         # ensure that each box is matched with
         # single ground-truth box with top IOU
         top_default_match = iou.max(axis=1, keepdims=True)
-        top_box_match = iou.max(axis=0, keepdims=True)
-        iou *= (iou == top_default_match) & (iou == top_box_match)
+        iou *= (iou == top_default_match)
         matched = iou > threshold
 
         # labels
@@ -110,7 +110,7 @@ class AnnotatedImage:
         return labels, offsets
 
     def plot(self, save_path, filename=None):
-        """Plots and save image"""
+        """Plot and save image"""
 
         filename = filename or self.filename
         if not filename:
@@ -119,12 +119,46 @@ class AnnotatedImage:
 
         plot_image(self.image, save_path, filename)
 
-    def plot_bboxes(self, save_path, filename=None):
-        """Plots and save image with bounding boxes"""
+    def plot_image_with_bboxes(self, save_path, colormap, filename=None):
+        """Plot and save image with bounding boxes"""
 
         filename = filename or self.filename
         if not filename:
             raise ValueError("`filename` should be specified either on image"
                              " creation or when calling this function.")
 
-        plot_with_bboxes(self.image, self.bboxes, save_path, filename)
+        recovered = self.recover_bboxes()
+
+        plot_with_bboxes(recovered.image, recovered.bboxes,
+                         colormap, save_path, filename)
+
+    def plot_matching_bboxes(self, save_path, default_boxes, threshold,
+                             class_mapping, colormap, filename=None):
+        """Plot and save image with matching bounding boxes"""
+
+        filename = filename or self.filename
+        if not filename:
+            raise ValueError("`filename` should be specified either on image"
+                             " creation or when calling this function.")
+
+        if self._bboxes_normalization_scale == (1, 1):
+            normalized = self.normalize_bboxes()
+        else:
+            normalized = self
+
+        labels, offsets = normalized.labels_and_offsets(default_boxes,
+                                                        threshold,
+                                                        class_mapping)
+
+        reverse_mapping = reverse_dict(class_mapping)
+        classnames = [reverse_mapping[label] for label in labels]
+
+        height, width = self.size
+        scale = (1 / height, 1 / width)
+
+        recovered = default_boxes.rescale(scale)
+        matched = BoundBoxArray.from_boxes(recovered.as_matrix(), classnames)
+        matched = matched[matched.index != "background"]
+
+        plot_with_bboxes(normalized.image, matched,
+                         colormap, save_path, filename)

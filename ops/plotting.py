@@ -24,25 +24,28 @@ def plot_image(image, save_path=None, file_name=None, dpi=800, save=True):
         return fig, ax
 
 
-def plot_with_bboxes(image, bboxes, save_path, file_name, dpi=800):
+def plot_with_bboxes(image, bboxes, colormap, save_path, file_name, dpi=800):
 
-    def add_bboxes(ax, bboxes):
+    def add_bboxes(ax, bboxes, colormap):
+
+        cmap = plt.get_cmap("summer")
 
         for classname, bbox in bboxes.iterrows():
+            color = cmap(colormap[classname])
             xmin, ymin, xmax, ymax, *centerbox = bbox
             bx = (xmin, xmax, xmax, xmin, xmin)
             by = (ymin, ymin, ymax, ymax, ymin)
-            ax.plot(bx, by, c="blue", lw=0.5)
+            ax.plot(bx, by, c=color, lw=0.5)
         
             bbox_props = dict(boxstyle="square,pad=0.3",
-                              fc="blue", ec="blue", lw=0.5)
+                              fc=color, ec=color, lw=0.5)
             text = classname
             ax.text(xmin, ymin, text, ha='center', va='center',
-                    size=1, color='black', bbox=bbox_props,
+                    size=1.2, color='black', bbox=bbox_props,
                     fontweight='semibold')
 
     fig, ax = plot_image(image, save=False)
-    add_bboxes(ax, bboxes)
+    add_bboxes(ax, bboxes, colormap)
 
     os.makedirs(save_path, exist_ok=True)
     fig.savefig(os.path.join(save_path, file_name + ".jpg"), dpi=dpi)
