@@ -24,10 +24,15 @@ def plot_image(image, save_path=None, file_name=None, dpi=800, save=True):
         return fig, ax
 
 
+
+
 def plot_with_bboxes(image, bboxes, colormap, save_path, file_name, dpi=800):
 
-    def add_bboxes(ax, bboxes, colormap):
+    def add_bboxes(ax, bboxes, colormap, image_shape, clamp=15):
 
+        height, width = height_and_width(image_shape)
+        bboxes = bboxes.clip((clamp, height - clamp),
+                             (clamp, width - clamp))
         cmap = plt.get_cmap("summer")
 
         for classname, bbox in bboxes.iterrows():
@@ -42,10 +47,10 @@ def plot_with_bboxes(image, bboxes, colormap, save_path, file_name, dpi=800):
             text = classname
             ax.text(xmin, ymin, text, ha='center', va='center',
                     size=1.2, color='black', bbox=bbox_props,
-                    fontweight='semibold')
+                    fontweight='semibold', family="Monaco")
 
     fig, ax = plot_image(image, save=False)
-    add_bboxes(ax, bboxes, colormap)
+    add_bboxes(ax, bboxes, colormap, image.shape)
 
     os.makedirs(save_path, exist_ok=True)
     fig.savefig(os.path.join(save_path, file_name + ".jpg"), dpi=dpi)
