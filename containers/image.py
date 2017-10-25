@@ -101,9 +101,9 @@ class AnnotatedImage:
 
         # offsets
         default_matched = matched.any(axis=1)
-        box_matched = matched.any(axis=0)
+        box_matched = matched[default_matched].argmax(axis=1)
         compressed_offsets = calculate_offsets(default_boxes[default_matched],
-                                               self.bboxes[box_matched])
+                                               self.bboxes.iloc[box_matched])
         offsets = np.zeros((default_matched.size, 4), dtype=np.float32)
         offsets[default_matched] = compressed_offsets
 

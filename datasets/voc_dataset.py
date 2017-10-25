@@ -2,6 +2,7 @@ from collections import OrderedDict
 
 from matplotlib import pyplot as plt
 import numpy as np
+from tqdm import tqdm
 
 
 from ops.io_ops import find_files
@@ -40,8 +41,16 @@ class VOCDataset:
 
     def __init__(self, path_to_images, path_to_annotations):
 
-        images = sorted(find_files(path_to_images, "*.jpg"))[:5]
-        annotations = sorted(find_files(path_to_annotations, "*.xml"))[:5]
+        images = sorted(find_files(path_to_images, "*.jpg"))
+        annotations = sorted(find_files(path_to_annotations, "*.xml"))
 
+        progressbar = tqdm(zip(images, annotations),
+                           ncols=75, desc="Loading VOC")
         self.images = [AnnotatedImage.load(image, annotation)
-                       for image, annotation in zip(images, annotations)]
+                       for image, annotation in progressbar]
+
+    def __iter__(self):
+        return iter(self.images)
+
+    def __len__(self):
+        return len(self.images)
