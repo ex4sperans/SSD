@@ -19,7 +19,7 @@ class AnnotatedImage:
                    filename=file_name(image))
 
     def __init__(self, image, bboxes, filename=None,
-                 bboxes_normalization_scale=(1, 1)):
+                 bboxes_normalized=False):
         """Initialize AnnotatedImage object"""
 
         self._image = image
@@ -27,7 +27,7 @@ class AnnotatedImage:
         self._filename = filename
         # keep scale to be able to convert
         # normalized bboxes to image scale
-        self._bboxes_normalization_scale = bboxes_normalization_scale
+        self._bboxes_normalized = bboxes_normalized
 
     @property
     def image(self):
@@ -51,9 +51,11 @@ class AnnotatedImage:
 
     def normalize(self, scale):
         """Normalize image according to `scale`"""
-        normalized = self._image / scale
 
-        return AnnotatedImage(normalized, self._bboxes, self._filename)
+        return AnnotatedImage(self._image / scale,
+                              self.bboxes,
+                              self.filename,
+                              self._bboxes_normalized)
 
     def normalize_bboxes(self):
         """Normalize bboxes to be in range of (0, 1) for both axes"""
@@ -61,17 +63,18 @@ class AnnotatedImage:
         return AnnotatedImage(self.image,
                               self.bboxes.rescale(self.size),
                               self.filename,
-                              self.size)
+                              bboxes_normalized=True)
 
     def recover_bboxes(self):
         """Recover bboxes to represent size in pixels"""
 
-        height, width = self._bboxes_normalization_scale
+        height, width = self.size
         scale = (1 / height, 1 / width)
 
         return AnnotatedImage(self.image,
                               self.bboxes.rescale(scale),
-                              self.filename)
+                              self.filename,
+                              bboxes_normalized=False)
 
     def resize(self, size):
         """Resize image and bboxes according to `size`"""
@@ -81,7 +84,8 @@ class AnnotatedImage:
 
         return AnnotatedImage(imresize(self.image, size),
                               self.bboxes.rescale(scale),
-                              self.filename)
+                              self.filename,
+                              self._bboxes_normalized)
 
     def labels_and_offsets(self, default_boxes, threshold, class_mapping):
         """Performs matching step."""
@@ -141,10 +145,7 @@ class AnnotatedImage:
             raise ValueError("`filename` should be specified either on image"
                              " creation or when calling this function.")
 
-        if self._bboxes_normalization_scale == (1, 1):
-            normalized = self.normalize_bboxes()
-        else:
-            normalized = self
+        normalized = self if self._bboxes_normalized else self.normalize_bboxes()
 
         labels, offsets = normalized.labels_and_offsets(default_boxes,
                                                         threshold,
@@ -153,10 +154,11 @@ class AnnotatedImage:
         reverse_mapping = reverse_dict(class_mapping)
         classnames = [reverse_mapping[label] for label in labels]
 
+        # recover default boxes
         height, width = self.size
         scale = (1 / height, 1 / width)
-
         recovered = default_boxes.rescale(scale)
+
         matched = BoundBoxArray.from_boxes(recovered.as_matrix(), classnames)
         matched = matched[matched.index != "background"]
 
