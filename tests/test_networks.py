@@ -1,7 +1,11 @@
-import tensorflow as tf
 import pytest
+import tensorflow as tf
 
+from datasets.voc_dataset import VOCDataset
 from networks.vgg.vgg import VGG_16
+from networks.ssd.ssd import SSD
+from networks.ssd.ssd import TRAIN, INFERENCE
+from networks.ssd.ssd import OutConvoLayer
 
 
 def test_vgg_16():
@@ -17,3 +21,28 @@ def test_vgg_16():
         with tf.Session() as sess:
 
             vgg_16.load_weights_from_npz(sess)
+
+
+def test_ssd():
+
+    class Config:
+
+        input_shape = (300, 300, 3)
+        weight_decay = 0.0005
+
+        out_layers = [OutConvoLayer(name="out_convo4_3",
+                                    parent="vgg_16.conv4_3",
+                                    kernel_size=(3, 3),
+                                    box_ratios=(1, 2, 1/2)),
+                      OutConvoLayer(name="out_convo7",
+                                    parent="conv7",
+                                    kernel_size=(3, 3),
+                                    box_ratios=(1, 2, 1/2))]
+
+        classnames = VOCDataset.classnames
+
+    with tf.Graph().as_default():
+
+        ssd = SSD(Config(), mode=INFERENCE, resume=False)
+
+        assert ssd.conv11_2.get_shape().as_list() == [None, 1, 1, 256]

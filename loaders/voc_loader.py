@@ -44,7 +44,7 @@ class VOCLoader:
 
     def train_batch(self, batch_size):
         """Construct new train minibatch
-        
+
         Returns the following tuple:
             images: (batch_size, height, width, 3)
             labels: (batch_size, n_default_boxes)
@@ -80,4 +80,3 @@ class VOCLoader:
 
         for iteration in range(iterations):
             yield self.train_batch(batch_size)
-    

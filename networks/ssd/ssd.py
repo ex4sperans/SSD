@@ -1,3 +1,4 @@
+import collections
 import functools
 import os
 import json
@@ -6,180 +7,220 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.contrib import slim
 
-from vgg.vgg import VGG_16
-from multithreaded_data_provider import MultithreadedTensorProvider
+from networks.vgg.vgg import VGG_16
+from ops.multithreaded_data_provider import TensorProvider
+from ops.misc import height_and_width
 
-import misc
-import preprocessing
-import postprocessing
-import boxes
+
+OutConvoLayer = collections.namedtuple("OutConvoLayer",
+                                       ["name",
+                                        "parent",
+                                        "kernel_size",
+                                        "box_ratios"])
+
+
+TRAIN = "train"
+INFERENCE = "inference"
+MODES = (TRAIN, INFERENCE)
+
 
 class SSD:
 
-    def __init__(self, model_params_path='ssd_params.json', resume=True, mode='train'):
+    def __init__(self, config, mode, resume=True):
 
-        model_params = misc.load_json(model_params_path)
+        self.config = config
+        self.scope = "SSD"
 
-        self.input_shape = model_params['input_shape']
-        self.class_names = model_params['class_names']
-        self.feedforward_convo_architecture = model_params['feedforward_convo_architecture']
-        self.out_convo_architecture = model_params['out_convo_architecture']
-        self.scope = model_params['scope']
-        self.first_layer = model_params['first_layer']
-        self.model_path = model_params['model_path']
-        self.neg_pos_ratio = model_params['neg_pos_ratio']
+        if not mode in MODES:
+            raise ValueError("`mode` should be one of {}".format(MODES))
 
-        self.mode = mode
-        self._create_placeholders()
-        self._create_graph()
-        self._create_step()
+        self.graph = tf.Graph()
+        with self.graph.as_default():
+            with tf.variable_scope(self.scope):
 
-        if mode == 'train':
-            self.loss = self._create_loss()
-            self.optimizer_vars = self._create_optimizer(self.loss)
-            
-        self.model_vars = self._get_vars_by_scope(self.scope)
+                self.mode = mode
+                self._create_placeholders()
+                self._create_graph()
+                self._create_step()
 
-        if mode == 'train':
-            self.saver_vars = self.model_vars + self.vgg_16.model_vars + self.optimizer_vars
-        elif mode == 'inference':
-            self.saver_vars = self.model_vars + self.vgg_16.model_vars
+                self.model_vars = self._get_vars_by_scope(self.scope)
+                self.all_vars = self.model_vars + self.vgg_16.model_vars
 
-        self.saver = self._create_saver(self.saver_vars)
+                if mode is TRAIN:
+                    self.loss = self._create_loss()
+                    self._create_optimizer(self.loss)
+                    self.optimizer_vars = self._get_vars_by_scope("optimizer")
+                    self.all_vars += self.optimizer_vars
 
-        if resume:
-            self.load_model(verbose=True)
-        else:
-            self._init_vars(self.model_vars)
-            self._init_vars(self.vgg_16.model_vars)
-            self._init_vars(self.optimizer_vars)
-            self.vgg_16.load_convo_weights_from_npz(sess=self.sess)
+                self.saver = self._create_saver(self.all_vars)
 
-        print('Number of parameters for {scope}: {n:.1f}M'.format(
-            scope=self.scope, n=self._number_of_parameters(self.model_vars)/1e6))
+                if resume:
+                    self.load_model(verbose=True)
+                else:
+                    self._init_vars(self.all_vars)
+                    self.vgg_16.load_weights_from_npz(sess=self.sess)
+
+    def _create_placeholders(self):
+
+        self.is_training = tf.placeholder(dtype=tf.bool)
+
+        self.test_images = tf.placeholder(
+                                    dtype=tf.float32,
+                                    shape=(None,) + self.config.input_shape)
+        if self.mode is TRAIN:
+            self.tensor_provider = TensorProvider(capacity=20,
+                                                  sess=self.sess,
+                                                  # images, labels, offsets
+                                                  dtypes=(tf.float32,
+                                                          tf.int32,
+                                                          tf.float32),
+                                                  number_of_threads=2)
+
+            (self.train_images,
+             self.labels,
+             self.offsets) = self.tensor_provider.get_input()
+
+            # make images to be output of tensor provider on train
+            # and placeholder on test
+            self.images = tf.cond(self.is_training,
+                                  lambda: self.train_images,
+                                  lambda: self.test_images)
+
+        elif self.mode is INFERENCE:
+            # just use placeholder as inputs on inference
+            self.images = self.test_images
+
+        self.vgg_16 = VGG_16(self.config.input_shape, self.images)
+
+    def _create_graph(self):
+
+        self.regularizer = slim.l2_regularizer(self.config.weight_decay)
+    
+        with tf.variable_scope('feedforward_convo'):
+            self._create_feedforward_convo()
+        with tf.variable_scope('out_convo'):
+            self._create_out_convo()
+
+    def _batch_norm(self, net, scope):
+
+        return slim.batch_norm(net,
+                               scale=True,
+                               updates_collections=None,
+                               is_training=self.is_training,
+                               scope=scope)
 
     def _create_feedforward_convo(self):
 
-        layer = self._nested_getattr(self.first_layer)
-
         with slim.arg_scope([slim.conv2d],
-              activation_fn=None,
-              weights_regularizer=slim.l2_regularizer(0.0005)):
+                            activation_fn=None,
+                            weights_regularizer=self.regularizer):
 
-            print('\nCreating layers for {scope}:'.format(scope=self.scope))
+            net = self._batch_norm(self.vgg_16.conv5_3, "batch_norm_5_3")
+            net = slim.conv2d(net, 1024, (3, 3), scope="conv6")
+            net = self._batch_norm(net, "batch_norm6")
+            self.conv6 = tf.nn.relu(net)
 
-            for layer_params in self.feedforward_convo_architecture:
-                (name, params), = layer_params.items()
-                if name.startswith('conv'):
-                    layer = slim.conv2d(
-                                        layer,
-                                        params['depth'],
-                                        params['kernel_size'],
-                                        params['stride'],
-                                        scope=name) 
-                elif name.startswith('avg_pool'):
-                    layer = slim.avg_pool2d(
-                                            layer,
-                                            params['kernel_size'],
-                                            padding=params['padding'],
-                                            scope=name)     
-                layer = slim.batch_norm(
-                                        layer,
-                                        scale=True,
-                                        updates_collections=None,
-                                        is_training=self.is_training,
-                                        scope='batch_norm_{}'.format(name))
-                layer = tf.nn.relu(layer)
-                
-                setattr(self, name, layer)
-                print('{name} with shape {shape}'.format(
-                        name=name, shape=layer.get_shape()))
+            net = slim.conv2d(self.conv6, 1024, (1, 1), scope="conv7")
+            net = self._batch_norm(net, "batch_norm7")
+            self.conv7 = tf.nn.relu(net)
+
+            net = slim.conv2d(self.conv6, 256, (1, 1), scope="conv8_1")
+            net = self._batch_norm(net, "batch_norm8_1")
+            self.conv8_1 = tf.nn.relu(net)
+
+            net = slim.conv2d(self.conv8_1, 512, (3, 3), 2, scope="conv8_2")
+            net = self._batch_norm(net, "batch_norm8_2")
+            self.conv8_2 = tf.nn.relu(net)
+
+            net = slim.conv2d(self.conv8_2, 128, (1, 1), scope="conv9_1")
+            net = self._batch_norm(net, "batch_norm9_1")
+            self.conv9_1 = tf.nn.relu(net)
+
+            net = slim.conv2d(self.conv9_1, 256, (3, 3), 2, scope="conv9_2")
+            net = self._batch_norm(net, "batch_norm9_2")
+            self.conv9_2 = tf.nn.relu(net)
+
+            net = slim.conv2d(self.conv9_2, 128, (1, 1), scope="conv10_1")
+            net = self._batch_norm(net, "batch_norm10_1")
+            self.conv10_1 = tf.nn.relu(net)
+
+            net = slim.conv2d(self.conv10_1, 256, (3, 3),
+                              scope="conv10_2", padding="VALID")
+            net = self._batch_norm(net, "batch_norm10_2")
+            self.conv10_2 = tf.nn.relu(net)
+
+            net = slim.conv2d(self.conv10_2, 128, (1, 1), scope="conv11_1")
+            net = self._batch_norm(net, "batch_norm11_1")
+            self.conv11_1 = tf.nn.relu(net)
+
+            net = slim.conv2d(self.conv11_1, 256, (3, 3),
+                              scope="conv11_2", padding="VALID")
+            net = self._batch_norm(net, "batch_norm11_2")
+            self.conv11_2 = tf.nn.relu(net)
 
     def _create_out_convo(self):
 
         with slim.arg_scope([slim.conv2d],
-              activation_fn=None,
-              weights_regularizer=slim.l2_regularizer(0.0005)):
-
-            print('\nCreating layers for {scope}:'.format(scope=self.scope))
+                            activation_fn=None,
+                            weights_regularizer=self.regularizer):
 
             out_layers, self.out_shapes, self.box_ratios = [], [], []
 
-            for layer_params in self.out_convo_architecture:
-                (name, params), = layer_params.items()
+            for layer in self.config.out_layers:
 
-                parent_layer = self._nested_getattr(params['parent'])
+                parent_layer = self._nested_getattr(layer.parent)
 
+                layer_boxes = len(layer.box_ratios)
+                self.box_ratios.append(layer.box_ratios)
                 # number of layer boxes times number of classes + 1 (background)
-                # plus number of layer boxes times 4 (box correction)
+                # plus number of layer boxes times 4 (box offsets)
                 # layer boxes is the number of boxes per cell of CNN feature map
-                layer_boxes = len(params['box_ratios'])
-                self.box_ratios.append(params['box_ratios'])
                 depth_per_box = self.n_classes + 1 + 4
-                depth = layer_boxes*depth_per_box
+                depth = layer_boxes * depth_per_box
 
-                layer = slim.conv2d(
-                                    parent_layer,
-                                    depth,
-                                    params['kernel_size'],
-                                    params['stride'],
-                                    scope=name)  
+                out = slim.conv2d(parent_layer,
+                                  depth,
+                                  layer.kernel_size,
+                                  scope=layer.name)
 
-                setattr(self, name, layer)
-                print('{name} with shape {shape}'.format(
-                        name=name, shape=layer.get_shape()))
-                height, width = misc.height_and_width(layer.get_shape().as_list())
-                new_shape = (-1, height*width*layer_boxes, depth_per_box)
-                out_layers.append(tf.reshape(layer, new_shape))
-                self.out_shapes.append(tuple(layer.get_shape().as_list()))
+                shape = tuple(out.get_shape().as_list())
+                self.out_shapes.append(shape)
 
-            stacked_out_layers = tf.concat(1, out_layers)
-            # slice stacked output along third dimension 
-            # to obtain labels and offsets 
+                height, width = height_and_width(shape)
+                new_shape = (-1, height * width * layer_boxes, depth_per_box)
+                out_layers.append(tf.reshape(out, new_shape))
+
+                print("{name} with shape {shape}"
+                      .format(name=layer.name, shape=shape))
+
+            stacked_out_layers = tf.concat(out_layers, 1)
             self.total_boxes = stacked_out_layers.get_shape().as_list()[1]
-            self.predicted_labels = tf.slice(stacked_out_layers, [0, 0, 0], [-1, -1, self.n_classes + 1])
-            self.predicted_offsets = tf.slice(stacked_out_layers, [0, 0, self.n_classes + 1], [-1, -1, 4]) 
+            # slice stacked output along third dimension
+            # to obtain labels and offsets
+            self.predicted_labels = tf.slice(stacked_out_layers,
+                                             [0, 0, 0],
+                                             [-1, -1, self.n_classes + 1])
+            self.predicted_offsets = tf.slice(stacked_out_layers,
+                                              [0, 0, self.n_classes + 1],
+                                              [-1, -1, 4])
             self.confidences = tf.nn.softmax(self.predicted_labels)
-            print('\nPredicted labels shape: {shape}'.format(shape=self.predicted_labels.get_shape()))
-            print('Predicted offsets shape: {shape}'.format(shape=self.predicted_offsets.get_shape()))
 
-    def _create_graph(self):
-        with tf.variable_scope(self.scope):
-            with tf.variable_scope('feedforward_convo'):
-                self._create_feedforward_convo()
-            with tf.variable_scope('out_convo'):
-                self._create_out_convo()
+            print("\nPredicted labels shape: {shape}"
+                  .format(shape=self.predicted_labels.get_shape()))
+            print("Predicted offsets shape: {shape}"
+                  .format(shape=self.predicted_offsets.get_shape()))
 
-    def _create_placeholders(self):
-
-        self.learning_rate = tf.placeholder(dtype=tf.float32)
-        self.test_images = tf.placeholder(dtype=tf.float32, shape=[None] + self.input_shape)
-        self.is_training = tf.placeholder(dtype=tf.bool, shape=())              
-        if self.mode == 'train':
-            self.tensor_provider = MultithreadedTensorProvider(
-                                                capacity=20,
-                                                sess=self.sess,
-                                                dtypes=[tf.float32, tf.int32, tf.float32],
-                                                number_of_threads=2)
-
-            self.train_images, self.labels, self.offsets = self.tensor_provider.get_input()
-            self.images = tf.cond(
-                                  self.is_training,
-                                  lambda: self.train_images,
-                                  lambda: self.test_images)
-        elif self.mode == 'inference':
-            self.images = self.test_images
-        else:
-            raise ValueError('Incorrect mode: {}'.format(self.mode))
-        self.vgg_16 = VGG_16(self.input_shape, self.images)
 
     def _create_loss(self):
-    
-        self.positives, self.negatives = self._positives_and_negatives(
-                    self.confidences, self.labels, self.neg_pos_ratio)
+
+        (self.positives,
+         self.negatives) = self._positives_and_negatives(
+                                                self.confidences,
+                                                self.labels,
+                                                self.config.neg_pos_ratio)
         positives_and_negatives = self.positives + self.negatives
         classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
-                                                self.predicted_labels, self.labels)
+                                            self.predicted_labels, self.labels)
         classification_loss *= positives_and_negatives
         classification_loss = tf.reduce_sum(classification_loss, 1)
         classification_loss /= tf.reduce_sum(positives_and_negatives, 1) + 1e-6
@@ -194,6 +235,7 @@ class SSD:
         self.l2_loss = tf.add_n(slim.losses.get_regularization_losses())
         # average over minibatch
         loss = self.classification_loss + self.localization_loss + self.l2_loss
+
         return loss
 
     def _positives_and_negatives(self, confidences, labels, neg_pos_ratio):
@@ -213,8 +255,7 @@ class SSD:
             k = tf.squeeze(tf.cast(k, tf.int32), 0)
             top, _ = tf.nn.top_k(conf, k)
 
-            return tf.cond(
-                           tf.greater(k, 0),
+            return tf.cond(tf.greater(k, 0),
                            lambda: tf.slice(top, [k-1], [1]),
                            lambda: tf.constant([1.0]))
 
@@ -227,37 +268,38 @@ class SSD:
         return positives, negatives
 
     def _create_optimizer(self, loss):
+
         self.learning_rate = tf.placeholder(dtype=tf.float32)
 
-        with tf.variable_scope('Optimizer_' + self.scope):
+        with tf.variable_scope("optimizer"):
             optimizer = tf.train.MomentumOptimizer(
                             learning_rate=self.learning_rate,
                             momentum=0.9)
             grads_and_vars = optimizer.compute_gradients(loss)
             self.train_step = optimizer.apply_gradients(grads_and_vars,
                                                         global_step=self.step)
-        optimizer_vars = self._get_vars_by_scope('Optimizer_' + self.scope)
-        return optimizer_vars
 
-    def _create_saver(self, vars_):
-        return tf.train.Saver(vars_)        
+    def _create_saver(self, var_list):
+        return tf.train.Saver(var_list)
 
     def _create_step(self):
         with tf.variable_scope(self.scope):
-            self.step = tf.get_variable(name='step', 
-                initializer=tf.ones(shape=(), dtype=tf.int32),
-                trainable=False)
+            self.step = tf.get_variable(name="step",
+                                        initializer=tf.ones(shape=(),
+                                                            dtype=tf.int32),
+                                        trainable=False)
             self.sess.run(tf.variables_initializer([self.step]))
 
     def get_step(self):
         return self.sess.run(self.step)
 
     def _nested_getattr(self, attr):
-        #getattr built-in extended with capability of handling nested attributes
+        # getattr built-in extended with capability
+        # of handling nested attributes
         return functools.reduce(getattr, attr.split('.'), self)
 
     def _smooth_L1(self, x):
-        L2 = tf.square(x)/2
+        L2 = tf.square(x) / 2
         L1 = tf.abs(x) - 0.5
         cond = tf.less(tf.abs(x), 1.0)
         distance = tf.select(cond, L2, L1)
@@ -275,18 +317,18 @@ class SSD:
 
     def _get_vars_by_scope(self, scope, only_trainable=False):
         if only_trainable:
-            vars_ = tf.trainable_variables()
+            var_list = tf.trainable_variables()
         else:
-            vars_ = tf.global_variables()
+            var_list = tf.global_variables()
 
-        return list(v for v in vars_ if v.name.startswith(scope))
+        return list(v for v in var_list if scope in v.name)
 
     def _number_of_parameters(self, vars_):
         return sum(np.prod(v.get_shape().as_list()) for v in vars_)
 
     @property
     def n_classes(self):
-        return len(self.class_names)
+        return len(self.config.classnames)
 
     def _init_vars(self, vars_=None):
         self.sess.run(tf.variables_initializer(vars_))
@@ -347,105 +389,3 @@ class SSD:
 
             if iteration % save_freq == 0:
                 self.save_model()
-
-            if iteration % test_freq == 0:
-                test_batch = loader.new_train_batch(1, augment=False)
-                self.test_iteration(
-                                    test_batch=test_batch,
-                                    default_boxes=default_boxes,
-                                    overlap_threshold=overlap_threshold,
-                                    nms_threshold=nms_threshold,
-                                    iteration=iteration,
-                                    save_path='predictions/train')                                    
-
-                test_batch = loader.new_test_batch(1)
-                self.test_iteration(
-                                    test_batch=test_batch,
-                                    default_boxes=default_boxes,
-                                    overlap_threshold=overlap_threshold,
-                                    nms_threshold=nms_threshold,
-                                    iteration=iteration,
-                                    save_path='predictions/test')
-
-    def train_iteration(self, iteration, learning_rate, default_boxes):
-
-        feed_dict = {
-                     # fake input to fill a test placeholder
-                     self.test_images: np.zeros([1] + self.input_shape),
-                     self.learning_rate: learning_rate,
-                     self.is_training: True}
-
-        fetches = [self.train_step, self.classification_loss, self.localization_loss]
-        _, class_loss, loc_loss = self.sess.run(fetches, feed_dict)
-
-        # fetches = [self.train_step, self.classification_loss, self.localization_loss, self.images, self.positives]
-        # _, class_loss, loc_loss, images, positives = self.sess.run(fetches, feed_dict)
-
-        # default_boxes = misc.flatten_list(default_boxes)
-        # for i, (image, image_positives) in enumerate(zip(images, positives)):
-
-        #     matched_boxes = [default_box for default_box, pos in zip(default_boxes, image_positives) if pos]
-        #     height, width = misc.height_and_width(self.input_shape)
-        #     matched_boxes = [boxes.recover_box(box, height, width) for box in matched_boxes]
-
-        #     boxes.plot_with_bboxes(image, 'batch_plots', str(i) + '.jpg', matched_boxes, [])
-
-
-        print('Iteration {}, Classificaion loss: {}, localization loss: {}'.format(
-                                                        iteration, class_loss, loc_loss))
-
-    def test_iteration(self, test_batch, default_boxes, overlap_threshold,
-                       nms_threshold, iteration, save_path):
-
-        images, offsets, labels = preprocessing.get_feed(
-                            test_batch, self, default_boxes, overlap_threshold)
-        feed_dict = {
-                     self.test_images: images,
-                     self.is_training: False}
-
-        confidences, corrections = self.confidences_and_corrections(feed_dict)
-
-        postprocessing.draw_top_boxes(
-                                      batch=test_batch,
-                                      confidences=confidences,
-                                      corrections=corrections,
-                                      default_boxes=default_boxes,
-                                      threshold=nms_threshold,
-                                      save_path=save_path,
-                                      iteration=iteration,
-                                      model=self)
-
-
-    def predict_single_image(self, image_path, predicted_image_path, 
-                             nms_threshold):
-
-        default_boxes = boxes.get_default_boxes(self.out_shapes, self.box_ratios)
-        image = misc.load_image(image_path)
-        resized_image = misc.resize(image, self.input_shape)
-        original_height, original_width = misc.height_and_width(image.shape)
-        height, width = misc.height_and_width(self.input_shape)
-
-        feed_dict = {
-                     self.test_images: [resized_image/255],
-                     self.is_training: False}
-
-        confidences, corrections = self.confidences_and_corrections(feed_dict)
-        confidences, corrections = confidences[0], corrections[0]
-
-        bboxes, labels, confidences = postprocessing.non_maximum_supression(
-                                            confidences=confidences,
-                                            default_boxes=default_boxes,
-                                            corrections=corrections,
-                                            class_names=self.class_names,
-                                            threshold=nms_threshold,
-                                            height=original_height,
-                                            width=original_width)
-
-        boxes.plot_predicted_bboxes(
-                                    image=image,
-                                    save_path='./',
-                                    file_name=predicted_image_path,
-                                    bboxes=bboxes,
-                                    labels=labels,
-                                    confidences=confidences,
-                                    class_names=self.class_names)

@@ -82,17 +82,13 @@ class VGG_16:
         convo_vars = self._get_vars_by_scope(self.scope + '/convo_layers')
         convo_vars = sorted(convo_vars, key=attrgetter('name'))
 
-        print("\nLoading weights for {scope}:".format(scope=self.scope))
         for key, var in zip(keys, convo_vars):
-            saved_var = saved_weights[key]
-            print("{name} with shape {shape}"
-                  .format(name=key, shape=saved_var.shape))
-            sess.run(var.assign(saved_var))
+            sess.run(var.assign(saved_weights[key]))
 
     def _get_vars_by_scope(self, scope, only_trainable=False):
         if only_trainable:
-            vars_list = tf.trainable_variables()
+            var_list = tf.trainable_variables()
         else:
-            vars_list = tf.global_variables()
+            var_list = tf.global_variables()
 
-        return list(v for v in vars_list if v.name.startswith(scope))
+        return list(v for v in var_list if scope in v.name)

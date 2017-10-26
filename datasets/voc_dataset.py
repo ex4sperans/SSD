@@ -11,8 +11,7 @@ from containers.image import AnnotatedImage
 
 class VOCDataset:
 
-    class_mapping = OrderedDict(background=0,
-                                pottedplant=1,
+    class_mapping = OrderedDict(pottedplant=1,
                                 boat=2,
                                 aeroplane=3,
                                 motorbike=4,

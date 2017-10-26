@@ -1,12 +1,11 @@
 import tensorflow as tf
 
-class MultithreadedTensorProvider():
 
-    """ A class designed to provide tensors input in a
-    separate threads. """
+class TensorProvider():
 
-    def __init__(
-                 self,
+    """A class designed to provide input tensors in separate threads."""
+
+    def __init__(self,
                  capacity,
                  sess,
                  dtypes,
@@ -15,7 +14,7 @@ class MultithreadedTensorProvider():
         """Initialize a class to provide a tensors with input data.
 
         Args:
-            capacity: maximum queue size. 
+            capacity: maximum queue size.
             sess: a tensorflow session.
             dtypes: list of data types.
         """
@@ -29,12 +28,12 @@ class MultithreadedTensorProvider():
         self.q_size = self.queue.size()
 
     def get_input(self):
-        """ Return input tensors """
+        """Return input tensors"""
         self.batch = self.queue.dequeue()
         return self.batch
 
     def set_data_provider(self, data_provider):
-        """ Set data provider to generate inputs.
+        """Set data provider to generate inputs.
 
         Args:
             data_provider: a callable to produce a tuple of inputs. All inputs
@@ -44,15 +43,14 @@ class MultithreadedTensorProvider():
         """
 
         if not callable(data_provider):
-            raise TypeError('Data provider should be a callable.')
-        
+            raise TypeError("Data provider should be a callable.")
+
         data = tf.py_func(data_provider, [], self.dtypes)
         enqueue_op = self.queue.enqueue(data)
-        qr = tf.train.QueueRunner(self.queue, [enqueue_op]*self.number_of_threads)
+        qr = tf.train.QueueRunner(self.queue,
+                                  [enqueue_op] * self.number_of_threads)
         tf.train.add_queue_runner(qr)
 
         self.coord = tf.train.Coordinator()
-        self.threads = tf.train.start_queue_runners(sess=self.sess, coord=self.coord)
-        
-
-
+        self.threads = tf.train.start_queue_runners(sess=self.sess,
+                                                    coord=self.coord)
