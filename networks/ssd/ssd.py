@@ -237,27 +237,36 @@ class SSD:
         one_hot_labels = tf.one_hot(labels, self.n_classes + 1, axis=2)
         positives = tf.cast(tf.not_equal(labels, background_class), tf.float32)
         n_positives = tf.reduce_sum(positives, 1, keep_dims=True)
-        n_negatives = tf.cast(n_positives*neg_pos_ratio, tf.float32)
-        true_labels_mask = tf.cast(tf.logical_not(tf.cast(one_hot_labels, tf.bool)), tf.float32)
-        top_wrong_confidences = tf.reduce_max(confidences * true_labels_mask, axis=2)
-        non_positive_mask = tf.cast(tf.logical_not(tf.cast(positives, tf.bool)), tf.float32)
+        n_negatives = tf.cast(n_positives * neg_pos_ratio, tf.float32)
+        true_labels_mask = 1 - one_hot_labels
+        non_positive_mask = 1 - positives
+        true_confidences = confidences * true_labels_mask
+        top_wrong_confidences = tf.reduce_max(true_confidences, axis=2)
 
-        def get_threshold(inputs):
-            conf = tf.slice(inputs, [0], [self.total_boxes])
+        def compute_threshold(inputs):
+            confidence = tf.slice(inputs, [0], [self.total_boxes])
             k = tf.slice(inputs, [self.total_boxes], [1])
             k = tf.squeeze(tf.cast(k, tf.int32), 0)
-            top, _ = tf.nn.top_k(conf, k)
+            top, _ = tf.nn.top_k(confidence, k)
 
-            return tf.cond(tf.greater(k, 0),
+            return tf.cond(k > 0,
                            lambda: tf.slice(top, [k-1], [1]),
                            lambda: tf.constant([1.0]))
 
-        map_inputs = tf.concat((top_wrong_confidences * non_positive_mask,
-                                n_negatives), 1)
-        thresholds = tf.map_fn(get_threshold, map_inputs)
-        self.thresholds = thresholds
-        negatives = tf.cast(
-            tf.greater(top_wrong_confidences*non_positive_mask, thresholds), tf.float32)
+        # there is a need to concatenate arguments to map,
+        # since map doesn't accept multiple arguments
+
+        map_inputs = tf.concat((top_wrong_confidences \
+                                * non_positive_mask,
+                                n_negatives),
+                               1)
+
+        thresholds = tf.map_fn(compute_threshold, map_inputs)
+
+        negatives = tf.cast(tf.greater(top_wrong_confidences \
+                                       * non_positive_mask,
+                                       thresholds),
+                            tf.float32)
 
         return positives, negatives
 
