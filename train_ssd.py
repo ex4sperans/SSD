@@ -26,6 +26,7 @@ args = parser.parse_args()
 class Config:
 
     model_path = "saved_models/SSD"
+    summary_path = "summaries"
 
     input_shape = (300, 300, 3)
     weight_decay = 0.0005

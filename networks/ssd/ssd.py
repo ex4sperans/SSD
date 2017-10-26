@@ -49,6 +49,7 @@ class SSD:
                 if mode is TRAIN:
                     self.loss = self._create_loss()
                     self._create_optimizer(self.loss)
+                    self._create_summaries()
                     self.optimizer_vars = self._get_vars_by_scope("optimizer")
                     self.all_vars += self.optimizer_vars
 
@@ -205,31 +206,39 @@ class SSD:
 
     def _create_loss(self):
 
-        (self.positives,
-         self.negatives) = self._positives_and_negatives(
-                                                self.confidences,
-                                                self.labels,
-                                                self.config.neg_pos_ratio)
-        positives_and_negatives = self.positives + self.negatives
-        classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
-                                                  logits=self.predicted_labels,
-                                                  labels=self.labels)
-        classification_loss *= positives_and_negatives
-        classification_loss = tf.reduce_sum(classification_loss, 1)
-        classification_loss /= tf.reduce_sum(positives_and_negatives, 1) + 1e-6
+        with tf.name_scope("loss"):
+            (self.positives,
+            self.negatives) = self._positives_and_negatives(
+                                                    self.confidences,
+                                                    self.labels,
+                                                    self.config.neg_pos_ratio)
+            positives_and_negatives = self.positives + self.negatives
+            classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
+                                                    logits=self.predicted_labels,
+                                                    labels=self.labels)
+            classification_loss *= positives_and_negatives
+            classification_loss = tf.reduce_sum(classification_loss, 1)
+            total_pos_neg = tf.reduce_sum(positives_and_negatives, 1)
+            classification_loss /= total_pos_neg + 1e-6
 
-        localization_loss = self._smooth_L1(self.predicted_offsets - self.offsets)
-        localization_loss = tf.reduce_sum(localization_loss, 2)*self.positives
-        localization_loss = tf.reduce_sum(localization_loss, 1)
-        localization_loss /= tf.reduce_sum(self.positives, 1) + 1e-6
+            localization_loss = self._smooth_L1(self.predicted_offsets \
+                                                - self.offsets)
+            localization_loss = tf.reduce_sum(localization_loss, 2)
+            localization_loss *= self.positives
+            localization_loss = tf.reduce_sum(localization_loss, 1)
+            localization_loss /= tf.reduce_sum(self.positives, 1) + 1e-6
 
-        self.classification_loss = tf.reduce_mean(classification_loss)
-        self.localization_loss = tf.reduce_mean(localization_loss)
-        self.l2_loss = tf.add_n(tf.losses.get_regularization_losses())
-        # average over minibatch
-        loss = self.classification_loss + self.localization_loss + self.l2_loss
+            # average over minibatch
+            self.classification_loss = tf.reduce_mean(classification_loss)
+            self.localization_loss = tf.reduce_mean(localization_loss)
+    
+            self.l2_loss = tf.add_n(tf.losses.get_regularization_losses())
 
-        return loss
+            loss = (self.classification_loss +
+                    self.localization_loss +
+                    self.l2_loss)
+
+            return loss
 
     def _positives_and_negatives(self, confidences, labels, neg_pos_ratio):
 
@@ -272,22 +281,42 @@ class SSD:
 
     def _create_optimizer(self, loss):
 
-        self.learning_rate = tf.placeholder(dtype=tf.float32,
-                                            name="learning_rate")
 
         with tf.variable_scope("optimizer"):
+
+            self.learning_rate = tf.placeholder(dtype=tf.float32,
+                                                name="learning_rate")
+
             optimizer = tf.train.MomentumOptimizer(
                             learning_rate=self.learning_rate,
                             momentum=self.config.momentum)
             grads_and_vars = optimizer.compute_gradients(loss)
             self.train_step = optimizer.apply_gradients(grads_and_vars,
                                                         global_step=self.step)
+    
+    def _create_summaries(self):
+
+        with tf.name_scope("summaries"):
+            tf.summary.scalar("classification_loss", self.classification_loss)
+            tf.summary.scalar("localization_loss", self.localization_loss)
+            self.summary = tf.summary.merge_all()
+
+            train_summary_path = os.path.join(self.config.summary_path,
+                                              self.scope,
+                                              "train")
+            self.train_writer = tf.summary.FileWriter(train_summary_path,
+                                                      graph=self.sess.graph)
+            test_summary_path = os.path.join(self.config.summary_path,
+                                             self.scope,
+                                             "test")
+            self.test_writer = tf.summary.FileWriter(test_summary_path)
 
     def _create_saver(self, var_list):
-        return tf.train.Saver(var_list)
+        with tf.name_scope("saver"):
+            return tf.train.Saver(var_list)
 
     def _create_step(self):
-        with tf.variable_scope(self.scope):
+        with tf.variable_scope("step"):
             self.step = tf.get_variable(name="step",
                                         initializer=tf.ones(shape=(),
                                                             dtype=tf.int32),
@@ -377,14 +406,15 @@ class SSD:
 
     def _train_iteration(self, iteration):
 
-        fetches = [self.loss, self.train_step]
+        fetches = [self.loss, self.summary, self.train_step]
 
         learning_rate = self.config.learning_rate_schedule(iteration)
 
         feed_dict = {self.learning_rate: learning_rate,
                      self.is_training: True}
 
-        loss, _ = self.sess.run([self.loss, self.train_step], feed_dict)
+        loss, summary, _ = self.sess.run(fetches, feed_dict)
 
         if iteration % self.config.log_interval == 0:
             print("Iteration: {}, loss: {}".format(iteration, loss))
+            self.train_writer.add_summary(summary, global_step=self.get_step())
