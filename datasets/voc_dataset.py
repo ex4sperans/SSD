@@ -65,7 +65,8 @@ class VOCDataset:
         self.images = []
 
         for image, annotation in tqdm(zip(images, annotations), ncols=75,
-                                      desc="Loading {}".format(self.name)):
+                                      desc="Loading {}".format(self.name),
+                                      total=len(images)):
             image = AnnotatedImage.load(image, annotation)
 
             if resize_to:

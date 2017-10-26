@@ -6,3 +6,4 @@ env
 .vscode
 .cache
 *checkpoint.ipynb
+saved_models

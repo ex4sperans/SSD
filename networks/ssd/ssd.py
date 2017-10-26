@@ -62,11 +62,12 @@ class SSD:
 
     def _create_placeholders(self):
 
-        self.is_training = tf.placeholder(dtype=tf.bool)
+        self.is_training = tf.placeholder(dtype=tf.bool, name="is_training")
 
-        self.test_images = tf.placeholder(
-                                    dtype=tf.float32,
-                                    shape=(None,) + self.config.input_shape)
+        self.test_images = tf.placeholder_with_default(
+                                input=tf.zeros((1,) + self.config.input_shape),
+                                shape=(None,) + self.config.input_shape,
+                                name="test_images")
         if self.mode is TRAIN:
             self.tensor_provider = TensorProvider(capacity=20,
                                                   sess=self.sess,
@@ -190,9 +191,6 @@ class SSD:
                 new_shape = (-1, height * width * layer_boxes, depth_per_box)
                 out_layers.append(tf.reshape(out, new_shape))
 
-                print("{name} with shape {shape}"
-                      .format(name=layer.name, shape=shape))
-
             stacked_out_layers = tf.concat(out_layers, 1)
             self.total_boxes = stacked_out_layers.get_shape().as_list()[1]
             # slice stacked output along third dimension
@@ -205,12 +203,6 @@ class SSD:
                                               [-1, -1, 4])
             self.confidences = tf.nn.softmax(self.predicted_labels)
 
-            print("\nPredicted labels shape: {shape}"
-                  .format(shape=self.predicted_labels.get_shape()))
-            print("Predicted offsets shape: {shape}"
-                  .format(shape=self.predicted_offsets.get_shape()))
-
-
     def _create_loss(self):
 
         (self.positives,
@@ -220,7 +212,8 @@ class SSD:
                                                 self.config.neg_pos_ratio)
         positives_and_negatives = self.positives + self.negatives
         classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
-                                            self.predicted_labels, self.labels)
+                                                  logits=self.predicted_labels,
+                                                  labels=self.labels)
         classification_loss *= positives_and_negatives
         classification_loss = tf.reduce_sum(classification_loss, 1)
         classification_loss /= tf.reduce_sum(positives_and_negatives, 1) + 1e-6
@@ -232,7 +225,7 @@ class SSD:
 
         self.classification_loss = tf.reduce_mean(classification_loss)
         self.localization_loss = tf.reduce_mean(localization_loss)
-        self.l2_loss = tf.add_n(slim.losses.get_regularization_losses())
+        self.l2_loss = tf.add_n(tf.losses.get_regularization_losses())
         # average over minibatch
         loss = self.classification_loss + self.localization_loss + self.l2_loss
 
@@ -240,13 +233,13 @@ class SSD:
 
     def _positives_and_negatives(self, confidences, labels, neg_pos_ratio):
 
-        background_class = self.n_classes
+        background_class = 0
         one_hot_labels = tf.one_hot(labels, self.n_classes + 1, axis=2)
         positives = tf.cast(tf.not_equal(labels, background_class), tf.float32)
         n_positives = tf.reduce_sum(positives, 1, keep_dims=True)
         n_negatives = tf.cast(n_positives*neg_pos_ratio, tf.float32)
         true_labels_mask = tf.cast(tf.logical_not(tf.cast(one_hot_labels, tf.bool)), tf.float32)
-        top_wrong_confidences = tf.reduce_max(confidences*true_labels_mask, axis=2)
+        top_wrong_confidences = tf.reduce_max(confidences * true_labels_mask, axis=2)
         non_positive_mask = tf.cast(tf.logical_not(tf.cast(positives, tf.bool)), tf.float32)
 
         def get_threshold(inputs):
@@ -259,7 +252,8 @@ class SSD:
                            lambda: tf.slice(top, [k-1], [1]),
                            lambda: tf.constant([1.0]))
 
-        map_inputs = tf.concat(1, (top_wrong_confidences*non_positive_mask, n_negatives))
+        map_inputs = tf.concat((top_wrong_confidences * non_positive_mask,
+                                n_negatives), 1)
         thresholds = tf.map_fn(get_threshold, map_inputs)
         self.thresholds = thresholds
         negatives = tf.cast(
@@ -269,12 +263,13 @@ class SSD:
 
     def _create_optimizer(self, loss):
 
-        self.learning_rate = tf.placeholder(dtype=tf.float32)
+        self.learning_rate = tf.placeholder(dtype=tf.float32,
+                                            name="learning_rate")
 
         with tf.variable_scope("optimizer"):
             optimizer = tf.train.MomentumOptimizer(
                             learning_rate=self.learning_rate,
-                            momentum=0.9)
+                            momentum=self.config.momentum)
             grads_and_vars = optimizer.compute_gradients(loss)
             self.train_step = optimizer.apply_gradients(grads_and_vars,
                                                         global_step=self.step)
@@ -299,10 +294,13 @@ class SSD:
         return functools.reduce(getattr, attr.split('.'), self)
 
     def _smooth_L1(self, x):
+
         L2 = tf.square(x) / 2
         L1 = tf.abs(x) - 0.5
-        cond = tf.less(tf.abs(x), 1.0)
-        distance = tf.select(cond, L2, L1)
+
+        cond = tf.cast(tf.less(tf.abs(x), 1.0), tf.float32)
+        distance = cond * L2 + (1 - cond) * L1
+
         return distance
 
     @property
@@ -333,59 +331,51 @@ class SSD:
     def _init_vars(self, vars_=None):
         self.sess.run(tf.variables_initializer(vars_))
 
-    def save_model(self, path=None, sess=None, verbose=False):
-        save_dir = path or self.model_path
+    def save_model(self, path=None, sess=None):
+
+        save_dir = path or self.config.model_path
         os.makedirs(save_dir, exist_ok=True)
         self.saver.save(sess or self.sess,
-                        os.path.join(save_dir, 'model.ckpt'))
-        if verbose:
-            print('\nFollowing vars have been saved to {}:'.format(save_dir))
-            for v in self.saver._var_list:
-                print('{}.'.format(v.name))
+                        os.path.join(save_dir, "model.ckpt"))
+        
+    def load_model(self, path=None, sess=None):
 
-    def load_model(self, path=None, sess=None, verbose=False):
         if path is None:
-            ckpt = tf.train.get_checkpoint_state(self.model_path)
+            ckpt = tf.train.get_checkpoint_state(self.config.model_path)
             if ckpt is None:
-                raise FileNotFoundError('Can`t load a model. '\
-                'Checkpoint does not exist.')    
+                raise FileNotFoundError("Can`t load a model. "
+                                        "Checkpoint doesn`t exist.")    
         restore_path = path or ckpt.model_checkpoint_path
-        print('\nFollowing vars have been restored from {}:'.format(restore_path))
         self.saver.restore(sess or self.sess, restore_path)
-        if verbose:
-            for v in self.saver._var_list:
-                print('{}'.format(v.name))
 
     def confidences_and_corrections(self, feed_dict):
         fetches = [self.confidences, self.predicted_offsets]
         confidences, corrections = self.sess.run(fetches, feed_dict)
         return confidences, corrections
 
-    def train(self, loader, overlap_threshold, nms_threshold, neg_pos_ratio,
-              batch_size, learning_rate_schedule, n_iter, test_freq, save_freq):
+    def fit(self, loader):
 
-        default_boxes = boxes.get_default_boxes(self.out_shapes, self.box_ratios)
+        with self.graph.as_default():
+            data_provider = functools.partial(loader.train_batch,
+                                            self.config.batch_size)
+            self.tensor_provider.set_data_provider(data_provider)
 
-        def data_provider():
+            for iteration in range(self.get_step(), self.config.iterations):
+                self._train_iteration(iteration)
 
-            train_batch = loader.new_train_batch(batch_size, augment=True)
-            images, offsets, labels = preprocessing.get_feed(
-                        train_batch, self, default_boxes, overlap_threshold)
+                if iteration % self.config.save_interval == 0:
+                    self.save_model()
 
-            return (np.array(images, dtype=np.float32),
-                    np.array(labels, dtype=np.int32),
-                    np.array(offsets, dtype=np.float32))            
+    def _train_iteration(self, iteration):
 
-        self.tensor_provider.set_data_provider(data_provider)
+        fetches = [self.loss, self.train_step]
 
-        for iteration in range(self.get_step(), n_iter):
+        learning_rate = self.config.learning_rate_schedule(iteration)
 
-            learning_rate = learning_rate_schedule(iteration)
-            
-            self.train_iteration(
-                                 iteration=iteration,
-                                 learning_rate=learning_rate,
-                                 default_boxes=default_boxes)
+        feed_dict = {self.learning_rate: learning_rate,
+                     self.is_training: True}
 
-            if iteration % save_freq == 0:
-                self.save_model()
+        loss, _ = self.sess.run([self.loss, self.train_step], feed_dict)
+
+        if iteration % self.config.log_interval == 0:
+            print("Iteration: {}, loss: {}".format(iteration, loss))
