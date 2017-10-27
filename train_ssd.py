@@ -31,6 +31,7 @@ class Config:
     input_shape = (300, 300, 3)
     weight_decay = 0.0005
     momentum = 0.9
+    batch_size = 4
 
     out_layers = [OutConvoLayer(name="out_convo4_3",
                                 parent="vgg_16.conv4_3",
@@ -49,7 +50,8 @@ class Config:
     matching_threshold = 0.45
     nms_threshold = 0.45
     neg_pos_ratio = 3
-    batch_size = 4
+    # on prediction
+    max_boxes = 20
 
     @staticmethod
     def learning_rate_schedule(iteration):

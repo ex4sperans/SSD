@@ -436,6 +436,7 @@ class SSD:
                                 image=image,
                                 class_mapping=loader._test.class_mapping,
                                 nms_threshold=self.config.nms_threshold,
+                                max_boxes=self.config.max_boxes,
                                 filename=filename)
 
         image.plot_image_with_bboxes("./predictions/train",
@@ -453,6 +454,7 @@ class SSD:
                                 image=image,
                                 class_mapping=loader._test.class_mapping,
                                 nms_threshold=self.config.nms_threshold,
+                                max_boxes=self.config.max_boxes,
                                 filename=filename)
 
         image.plot_image_with_bboxes("./predictions/test",

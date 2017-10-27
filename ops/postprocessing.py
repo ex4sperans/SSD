@@ -9,7 +9,8 @@ from ops.misc import reverse_dict
 
 
 def non_maximum_supression(confidences, offsets, default_boxes,
-                           class_mapping, image, nms_threshold, filename):
+                           class_mapping, image, nms_threshold,
+                           filename, max_boxes):
     """Given confidences, default boxes and offsets,
     outputs top confident boxes and theirs classes
 
@@ -23,6 +24,7 @@ def non_maximum_supression(confidences, offsets, default_boxes,
         image: np.ndarray, image
         nms_threshold: float, used during non-maximum-supression
             to decide if two boxes correspond to one object
+        max_boxes: int, maximum number of boxes
         filename: str, filename
 
     Returns:
@@ -70,7 +72,7 @@ def non_maximum_supression(confidences, offsets, default_boxes,
             top_boxes = box
             continue
 
-        if len(top_boxes) > 20:
+        if len(top_boxes) >= max_boxes:
             break
 
         non_matching = (top_boxes.iou(box) < nms_threshold).squeeze()
