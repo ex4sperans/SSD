@@ -32,7 +32,7 @@ def iou(first, second):
 
     intersection = _intersection(first, second)
     union = _union(first, second, intersection)
-    
+
     return np.maximum(intersection / (union + 1e-10), 0)
 
 
@@ -44,3 +44,11 @@ def calculate_offsets(default, matched):
                          np.log(matched.width / default.width),
                          np.log(matched.height / default.height)))
 
+
+def apply_offsets(default, offsets):
+    """Applies offsets for given default boxes"""
+
+    return np.transpose((default.x_center + offsets.x_center * default.width,
+                         default.y_center + offsets.y_center * default.height,
+                         default.width * np.exp(offsets.width),
+                         default.height * np.exp(offsets.height)))

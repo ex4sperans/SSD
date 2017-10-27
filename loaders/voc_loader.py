@@ -80,3 +80,44 @@ class VOCLoader:
 
         for iteration in range(iterations):
             yield self.train_batch(batch_size)
+
+    def test_batch(self, batch_size):
+        """Construct new train minibatch
+
+        Returns:
+            images: (batch_size, height, width, 3)
+        """
+
+        images_batch = []
+        labels_batch = []
+        offsets_batch = []
+
+        for annotated_image in random.sample(self._test.images, batch_size):
+
+            normalized = (annotated_image
+                          .normalize(255)
+                          .normalize_bboxes())
+
+            images_batch.append(normalized.image)
+
+            labels, offsets = normalized.labels_and_offsets(
+                                        default_boxes=self.default_boxes,
+                                        threshold=self.matching_threshold,
+                                        class_mapping=VOCDataset.class_mapping)
+
+            labels_batch.append(labels)
+            offsets_batch.append(offsets)
+
+        return (np.array(images_batch, dtype=np.float32),
+                np.array(labels_batch, dtype=np.int32),
+                np.array(offsets_batch, dtype=np.float32))
+
+    def single_train_image(self):
+
+        image = random.choice(self._train)
+        return image.image, image.filename
+
+    def single_test_image(self):
+
+        image = random.choice(self._test)
+        return image.image, image.filename

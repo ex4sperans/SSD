@@ -35,43 +35,42 @@ class Config:
     out_layers = [OutConvoLayer(name="out_convo4_3",
                                 parent="vgg_16.conv4_3",
                                 kernel_size=(3, 3),
-                                box_ratios=(1, 2, 1/2)),
+                                box_ratios=(1,)),
                   OutConvoLayer(name="out_convo7",
                                 parent="conv7",
                                 kernel_size=(3, 3),
-                                box_ratios=(1, 2, 1/2)),
+                                box_ratios=(1,)),
                   OutConvoLayer(name="out_convo9_2",
                                 parent="conv9_2",
                                 kernel_size=(3, 3),
-                                box_ratios=(1, 2, 1/2, 3, 1/3))]
+                                box_ratios=(1,))]
 
     classnames = VOCDataset.classnames
     matching_threshold = 0.45
+    nms_threshold = 0.45
     neg_pos_ratio = 3
     batch_size = 4
 
     @staticmethod
     def learning_rate_schedule(iteration):
 
-        # warm-up
-        if iteration < 100:
+        if iteration < 50000:
             return 1e-4
-        elif iteration < 30000:
-            return 1e-3
-        elif iteration < 50000:
-            return 1e-4
-        else:
+        elif iteration < 80000:
             return 1e-5
+        else:
+            return 1e-6
 
     iterations = 100000
 
     save_interval = 200
     log_interval = 1
+    test_interval = 1
 
-
+# create config and model
 config = Config()
 model = SSD(config, resume=False, mode=TRAIN)
-
+# generate default boxes
 default_boxes = get_default_boxes(model.out_shapes, model.box_ratios)
 
 loader = VOCLoader(args.train_images,
@@ -82,5 +81,5 @@ loader = VOCLoader(args.train_images,
                    matching_threshold=config.matching_threshold,
                    resize_to=config.input_shape,
                    max_samples=100)
-
+# fit the model to data
 model.fit(loader)

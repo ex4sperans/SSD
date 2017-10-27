@@ -79,3 +79,6 @@ class VOCDataset:
 
     def __len__(self):
         return len(self.images)
+
+    def __getitem__(self, item):
+        return self.images[item]

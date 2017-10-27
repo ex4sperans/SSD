@@ -10,6 +10,7 @@ from tensorflow.contrib import slim
 from networks.vgg.vgg import VGG_16
 from ops.multithreaded_data_provider import TensorProvider
 from ops.misc import height_and_width
+from ops.postprocessing import non_maximum_supression
 
 
 OutConvoLayer = collections.namedtuple("OutConvoLayer",
@@ -382,11 +383,11 @@ class SSD:
             ckpt = tf.train.get_checkpoint_state(self.config.model_path)
             if ckpt is None:
                 raise FileNotFoundError("Can`t load a model. "
-                                        "Checkpoint doesn`t exist.")    
+                                        "Checkpoint doesn`t exist.")
         restore_path = path or ckpt.model_checkpoint_path
         self.saver.restore(sess or self.sess, restore_path)
 
-    def confidences_and_corrections(self, feed_dict):
+    def _confidences_and_corrections(self, feed_dict):
         fetches = [self.confidences, self.predicted_offsets]
         confidences, corrections = self.sess.run(fetches, feed_dict)
         return confidences, corrections
@@ -395,11 +396,14 @@ class SSD:
 
         with self.graph.as_default():
             data_provider = functools.partial(loader.train_batch,
-                                            self.config.batch_size)
+                                              batch_size=self.config.batch_size)
             self.tensor_provider.set_data_provider(data_provider)
 
             for iteration in range(self.get_step(), self.config.iterations):
                 self._train_iteration(iteration)
+
+                if iteration % self.config.test_interval == 0:
+                    self._test_iteration(loader)
 
                 if iteration % self.config.save_interval == 0:
                     self.save_model()
@@ -418,3 +422,38 @@ class SSD:
         if iteration % self.config.log_interval == 0:
             print("Iteration: {}, loss: {}".format(iteration, loss))
             self.train_writer.add_summary(summary, global_step=self.get_step())
+
+    def _test_iteration(self, loader):
+
+        image, filename = loader.single_train_image()
+        feed_dict = {self.test_images: [image], self.is_training: False}
+        confidences, corrections = self._confidences_and_corrections(feed_dict)
+
+        image = non_maximum_supression(
+                                confidences=confidences.squeeze(),
+                                offsets=corrections.squeeze(),
+                                default_boxes=loader.default_boxes,
+                                image=image,
+                                class_mapping=loader._test.class_mapping,
+                                nms_threshold=self.config.nms_threshold,
+                                filename=filename)
+
+        image.plot_image_with_bboxes("./predictions/train",
+                                     colormap=loader._test.colormap)
+
+
+        image, filename = loader.single_test_image()
+        feed_dict = {self.test_images: [image], self.is_training: False}
+        confidences, corrections = self._confidences_and_corrections(feed_dict)
+
+        image = non_maximum_supression(
+                                confidences=confidences.squeeze(),
+                                offsets=corrections.squeeze(),
+                                default_boxes=loader.default_boxes,
+                                image=image,
+                                class_mapping=loader._test.class_mapping,
+                                nms_threshold=self.config.nms_threshold,
+                                filename=filename)
+
+        image.plot_image_with_bboxes("./predictions/test",
+                                     colormap=loader._test.colormap)

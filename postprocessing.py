@@ -29,7 +29,7 @@ def non_maximum_supression(confidences, default_boxes, corrections,
     labels = np.argmax(confidences, 1)
     top_confidences = np.amax(confidences, 1)
 
-    idx = np.flip(np.argsort(top_confidences), 0) 
+    idx = np.flip(np.argsort(top_confidences), 0)
     top_confidences = top_confidences[idx]
     labels = labels[idx]
     default_boxes = [default_boxes[i] for i in idx]
