@@ -47,7 +47,7 @@ def non_maximum_supression(confidences, offsets, default_boxes,
 
     # sort confidences
     sorted_confidence_idx = np.flip(np.argsort(top_confidences), 0)
-    
+
     top_confidences = np.take(top_confidences, sorted_confidence_idx)
     labels = np.take(labels, sorted_confidence_idx)
     offsets = np.take(offsets, sorted_confidence_idx, axis=0)
@@ -82,5 +82,5 @@ def non_maximum_supression(confidences, offsets, default_boxes,
 
         if non_matching.all() or matching_other_class.all():
             top_boxes = top_boxes.append(box)
-   
+
     return AnnotatedImage(image, top_boxes, filename, bboxes_normalized=True)

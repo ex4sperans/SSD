@@ -57,7 +57,7 @@ class SSD:
                 self.saver = self._create_saver(self.all_vars)
 
                 if resume:
-                    self.load_model(verbose=True)
+                    self.load_model()
                 else:
                     self._init_vars(self.all_vars)
                     self.vgg_16.load_weights_from_npz(sess=self.sess)
@@ -232,7 +232,7 @@ class SSD:
             # average over minibatch
             self.classification_loss = tf.reduce_mean(classification_loss)
             self.localization_loss = tf.reduce_mean(localization_loss)
-    
+
             self.l2_loss = tf.add_n(tf.losses.get_regularization_losses())
 
             loss = (self.classification_loss +
@@ -294,12 +294,13 @@ class SSD:
             grads_and_vars = optimizer.compute_gradients(loss)
             self.train_step = optimizer.apply_gradients(grads_and_vars,
                                                         global_step=self.step)
-    
+
     def _create_summaries(self):
 
         with tf.name_scope("summaries"):
             tf.summary.scalar("classification_loss", self.classification_loss)
             tf.summary.scalar("localization_loss", self.localization_loss)
+            tf.summary.scalar("l2_loss", self.l2_loss)
             self.summary = tf.summary.merge_all()
 
             train_summary_path = os.path.join(self.config.summary_path,
@@ -376,7 +377,7 @@ class SSD:
         os.makedirs(save_dir, exist_ok=True)
         self.saver.save(sess or self.sess,
                         os.path.join(save_dir, "model.ckpt"))
-        
+
     def load_model(self, path=None, sess=None):
 
         if path is None:
@@ -403,7 +404,7 @@ class SSD:
                 self._train_iteration(iteration)
 
                 if iteration % self.config.test_interval == 0:
-                    self._test_iteration(loader)
+                    self._test_iteration(loader, iteration)
 
                 if iteration % self.config.save_interval == 0:
                     self.save_model()
@@ -423,7 +424,7 @@ class SSD:
             print("Iteration: {}, loss: {}".format(iteration, loss))
             self.train_writer.add_summary(summary, global_step=self.get_step())
 
-    def _test_iteration(self, loader):
+    def _test_iteration(self, loader, iteration):
 
         image, filename = loader.single_train_image()
         feed_dict = {self.test_images: [image], self.is_training: False}
@@ -439,8 +440,11 @@ class SSD:
                                 max_boxes=self.config.max_boxes,
                                 filename=filename)
 
-        image.plot_image_with_bboxes("./predictions/train",
-                                     colormap=loader._test.colormap)
+        if image.bboxes is not None:
+            image.plot_image_with_bboxes("./predictions/train",
+                                         colormap=loader._test.colormap,
+                                         filename="{}_{}"
+                                         .format(image.filename, iteration))
 
 
         image, filename = loader.single_test_image()
@@ -457,5 +461,8 @@ class SSD:
                                 max_boxes=self.config.max_boxes,
                                 filename=filename)
 
-        image.plot_image_with_bboxes("./predictions/test",
-                                     colormap=loader._test.colormap)
+        if image.bboxes is not None:
+            image.plot_image_with_bboxes("./predictions/test",
+                                         colormap=loader._test.colormap,
+                                         filename="{}_{}"
+                                         .format(image.filename, iteration))
