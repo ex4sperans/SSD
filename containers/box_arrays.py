@@ -23,6 +23,14 @@ class BoundBoxArray(pd.DataFrame):
                                      dtype=np.float32)
 
     @property
+    def classnames(self):
+        if any(not isinstance(i, str) for i in self.index):
+            raise AttributeError("Current BoundBoxArray index doesn't"
+                                 "represent boxes classnames. Use obj.index "
+                                 "to get explicitly get index.")
+        return list(self.index)
+
+    @property
     def boundboxes(self):
         return self[self.__class__.BOUNDBOX_COLUMNS]
 

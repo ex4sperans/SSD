@@ -99,7 +99,7 @@ class AnnotatedImage:
 
         # labels
         classmask = np.array([class_mapping[classname]
-                              for classname in self.bboxes.index],
+                              for classname in self.bboxes.classnames],
                              dtype=np.int32)
         labels = (matched * classmask).sum(axis=1, dtype=np.int32)
 
@@ -160,7 +160,7 @@ class AnnotatedImage:
         recovered = default_boxes.rescale(scale)
 
         matched = BoundBoxArray.from_boxes(recovered.as_matrix(), classnames)
-        matched = matched[matched.index != "background"]
+        matched = matched[matched.classnames != "background"]
 
         plot_with_bboxes(normalized.image, matched,
                          colormap, save_path, filename)

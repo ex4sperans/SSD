@@ -78,7 +78,9 @@ def non_maximum_supression(confidences, offsets, default_boxes,
         non_matching = (top_boxes.iou(box) < nms_threshold).squeeze()
         matching = np.logical_not(non_matching)
 
-        matching_other_class = np.logical_and(matching, top_boxes.index != label)
+        matching_other_class = np.logical_and(
+                                    matching,
+                                    top_boxes.classnames.isin(box.classnames))
 
         if non_matching.all() or matching_other_class.all():
             top_boxes = top_boxes.append(box)
