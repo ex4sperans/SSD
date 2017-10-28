@@ -42,6 +42,28 @@ class VOCLoader:
         self.resize_to = resize_to
         self.matching_threshold = matching_threshold
 
+    def process_image(self, image):
+        """Construct one element minibatch
+
+        Returns the following tuple:
+            images: (height, width, 3)
+            labels: (n_default_boxes)
+            offsets: (n_default_boxes, 4)
+        """
+
+        normalized = (image
+                      .normalize(255)
+                      .normalize_bboxes())
+
+        labels, offsets = normalized.labels_and_offsets(
+                                    default_boxes=self.default_boxes,
+                                    threshold=self.matching_threshold,
+                                    class_mapping=VOCDataset.class_mapping)
+
+        return (np.array(normalized.image, dtype=np.float32),
+                np.array(labels, dtype=np.int32),
+                np.array(offsets, dtype=np.float32))
+
     def train_batch(self, batch_size):
         """Construct new train minibatch
 
@@ -51,66 +73,38 @@ class VOCLoader:
             offsets: (batch_size, n_default_boxes, 4)
         """
 
-        images_batch = []
-        labels_batch = []
-        offsets_batch = []
+        images, labels, offsets = zip(*[self.process_image(annotated_image)
+                                        for annotated_image in
+                                        random.sample(self._train.images,
+                                                      batch_size)])
 
-        for annotated_image in random.sample(self._train.images, batch_size):
+        return (np.stack(images),
+                np.stack(labels),
+                np.stack(offsets))
 
-            normalized = (annotated_image
-                          .normalize(255)
-                          .normalize_bboxes())
+    def test_batch(self, batch_size):
+        """Construct new test minibatch
 
-            images_batch.append(normalized.image)
+        Returns the following tuple:
+            images: (batch_size, height, width, 3)
+            labels: (batch_size, n_default_boxes)
+            offsets: (batch_size, n_default_boxes, 4)
+        """
 
-            labels, offsets = normalized.labels_and_offsets(
-                                        default_boxes=self.default_boxes,
-                                        threshold=self.matching_threshold,
-                                        class_mapping=VOCDataset.class_mapping)
+        images, labels, offsets = zip(*[self.process_image(annotated_image)
+                                        for annotated_image in
+                                        random.sample(self._test.images,
+                                                      batch_size)])
 
-            labels_batch.append(labels)
-            offsets_batch.append(offsets)
+        return (np.stack(images),
+                np.stack(labels),
+                np.stack(offsets))
 
-        return (np.array(images_batch, dtype=np.float32),
-                np.array(labels_batch, dtype=np.int32),
-                np.array(offsets_batch, dtype=np.float32))
-
-    def train_iterator(self, batch_size, iterations):
+    def random_train_iterator(self, batch_size, iterations):
         """A generator to produce batches from train set"""
 
         for iteration in range(iterations):
             yield self.train_batch(batch_size)
-
-    def test_batch(self, batch_size):
-        """Construct new train minibatch
-
-        Returns:
-            images: (batch_size, height, width, 3)
-        """
-
-        images_batch = []
-        labels_batch = []
-        offsets_batch = []
-
-        for annotated_image in random.sample(self._test.images, batch_size):
-
-            normalized = (annotated_image
-                          .normalize(255)
-                          .normalize_bboxes())
-
-            images_batch.append(normalized.image)
-
-            labels, offsets = normalized.labels_and_offsets(
-                                        default_boxes=self.default_boxes,
-                                        threshold=self.matching_threshold,
-                                        class_mapping=VOCDataset.class_mapping)
-
-            labels_batch.append(labels)
-            offsets_batch.append(offsets)
-
-        return (np.array(images_batch, dtype=np.float32),
-                np.array(labels_batch, dtype=np.int32),
-                np.array(offsets_batch, dtype=np.float32))
 
     def single_train_image(self):
 
