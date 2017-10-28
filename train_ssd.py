@@ -1,5 +1,8 @@
 import argparse
 
+import matplotlib
+matplotlib.use("pdf")
+
 from networks.ssd.ssd import SSD
 from networks.ssd.ssd import TRAIN
 from networks.ssd.ssd import OutConvoLayer

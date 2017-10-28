@@ -1,7 +1,5 @@
 import os
 
-import matplotlib
-matplotlib.use("Agg")
 from matplotlib import pyplot as plt
 
 from ops.misc import height_and_width
