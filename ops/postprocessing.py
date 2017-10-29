@@ -58,7 +58,7 @@ def non_maximum_supression(confidences, offsets, default_boxes,
     offsets = np.clip(offsets, -1, 1)
     offsets = BoundBoxArray.from_centerboxes(offsets)
     corrected_boxes = apply_offsets(default_boxes, offsets)
-    corrected_boxes = BoundBoxArray.from_centerboxes(corrected_boxes, labels)
+    corrected_boxes = BoundBoxArray.from_centerboxes(corrected_boxes)
     corrected_boxes = corrected_boxes.clip()
 
     top_boxes = None
@@ -66,7 +66,8 @@ def non_maximum_supression(confidences, offsets, default_boxes,
     for (confidence, label, box) in zip(
             top_confidences, labels, corrected_boxes.centerboxes.as_matrix()):
 
-        box = BoundBoxArray.from_centerboxes([box], [reverse_mapping[label]])
+        classname = reverse_mapping[label]
+        box = BoundBoxArray.from_centerboxes([box], [classname])
 
         if top_boxes is None:
             top_boxes = box
@@ -78,9 +79,8 @@ def non_maximum_supression(confidences, offsets, default_boxes,
         non_matching = (top_boxes.iou(box) < nms_threshold).squeeze()
         matching = np.logical_not(non_matching)
 
-        matching_other_class = np.logical_and(
-                                    matching,
-                                    top_boxes.classnames.isin(box.classnames))
+        other_class = top_boxes.classnames != classname
+        matching_other_class = np.logical_and(matching, other_class)
 
         if non_matching.all() or matching_other_class.all():
             top_boxes = top_boxes.append(box)
