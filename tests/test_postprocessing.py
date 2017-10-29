@@ -41,7 +41,7 @@ def test_non_maximum_supression():
     annotated_image = non_maximum_supression(confidences, offsets,
                                              default_boxes, class_mapping,
                                              image, nms_threshold,
-                                             filename, max_boxes)
+                                             filename, max_boxes, clip=False)
 
     bboxes = annotated_image.bboxes
 

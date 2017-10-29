@@ -10,7 +10,7 @@ from ops.misc import reverse_dict
 
 def non_maximum_supression(confidences, offsets, default_boxes,
                            class_mapping, image, nms_threshold,
-                           filename, max_boxes):
+                           filename, max_boxes, clip=True):
     """Given confidences, default boxes and offsets,
     outputs top confident boxes and theirs classes
 
@@ -26,6 +26,7 @@ def non_maximum_supression(confidences, offsets, default_boxes,
             to decide if two boxes correspond to one object
         max_boxes: int, maximum number of boxes
         filename: str, filename
+        clip: bool, whether to clip offsets to (0, 1)
 
     Returns:
         AnnotatedImage with bounding boxes
@@ -54,8 +55,9 @@ def non_maximum_supression(confidences, offsets, default_boxes,
     default_boxes = BoundBoxArray.from_boxes(
                         default_boxes.iloc[sorted_confidence_idx].as_matrix())
 
-    # apply offsets and construct BoundBoxArray with annotations
-    offsets = np.clip(offsets, 0, 1)
+    # apply offsets and construct BoundBoxArray
+    if clip:
+        offsets = np.clip(offsets, 0, 1)
     offsets = BoundBoxArray.from_centerboxes(offsets)
     corrected_boxes = apply_offsets(default_boxes, offsets)
     corrected_boxes = BoundBoxArray.from_centerboxes(corrected_boxes)
