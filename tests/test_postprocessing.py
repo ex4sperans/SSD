@@ -22,11 +22,12 @@ def test_non_maximum_supression():
     confidences[5] = (0.0, 0.05, 0.9, 0.05)
     # default box #101 should be associated with class `cow`
     confidences[100] = (0.0, 0.05, 0.0, 0.95)
-    # default box #162 should be associated with class `cat`
-    # and box #161 should NOT, since it has lower confidence
-    # and these two boxes have big overlap
-    confidences[160] = (0.0, 0.75, 0, 0.25)
-    confidences[161] = (0.0, 0.8, 0.1, 0.11)
+    # default box #142 should be associated with class `cat`
+    # and box #141 and #143 should NOT since they
+    # have lower confidence and these boxes have big overlap
+    confidences[140] = (0.0, 0.75, 0, 0.25)
+    confidences[141] = (0.0, 0.9, 0.1, 0.0)
+    confidences[142] = (0.0, 0.8, 0.1, 0.1)
     # default box #201 should be associated with class `cat`
     confidences[200] = (0.0, 0.70, 0, 0.30)
 
@@ -51,7 +52,7 @@ def test_non_maximum_supression():
     assert set(bboxes.classnames) == {"cat", "dog", "cow"}
     assert np.allclose(bboxes.loc["dog"], default_boxes.iloc[5])
     assert np.allclose(bboxes.loc["cat"],
-                       default_boxes.iloc[[161, 200]])
+                       default_boxes.iloc[[141, 200]])
 
     cow_box = default_boxes.centerboxes.iloc[100]
     cow_box.x_center += 0.5 * cow_box.width
