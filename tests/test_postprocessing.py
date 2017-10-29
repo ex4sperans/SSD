@@ -2,6 +2,7 @@ import numpy as np
 
 from ops.postprocessing import non_maximum_supression
 from containers.image import AnnotatedImage
+from containers.box_arrays import BoundBoxArray
 from ops.default_boxes import get_default_boxes
 
 
@@ -13,22 +14,25 @@ def test_non_maximum_supression():
 
     class_mapping = dict(cat=1,
                          dog=2,
-                         cow=3)
+                         cow=3,
+                         table=4)
 
     confidences = np.array([(1, 0, 0, 0)] * n_boxes, dtype=np.float32)
     # default box #6 should be associated with class `dog`
     confidences[5] = (0.0, 0.05, 0.9, 0.05)
-
+    # default box #101 should be associated with class `cow`
+    confidences[100] = (0.0, 0.05, 0.0, 0.95)
     # default box #162 should be associated with class `cat`
     # and box #161 should NOT, since it has lower confidence
     # and these two boxes have big overlap
     confidences[160] = (0.0, 0.75, 0, 0.25)
     confidences[161] = (0.0, 0.8, 0.1, 0.11)
-
     # default box #201 should be associated with class `cat`
     confidences[200] = (0.0, 0.70, 0, 0.30)
 
     offsets = np.zeros((n_boxes, 4), dtype=np.float32)
+    offsets[100] = (0.5, 0, np.log(0.5), np.log(0.1))
+
     image = np.zeros((300, 300, 3))
     nms_threshold = 0.5
     filename = "foo"
@@ -43,10 +47,17 @@ def test_non_maximum_supression():
 
     assert isinstance(annotated_image, AnnotatedImage)
 
-    assert len(bboxes) == 3
-    assert set(bboxes.classnames) == {"cat", "dog"}
+    assert len(bboxes) == 4
+    assert set(bboxes.classnames) == {"cat", "dog", "cow"}
     assert np.allclose(bboxes.loc["dog"], default_boxes.iloc[5])
     assert np.allclose(bboxes.loc["cat"],
                        default_boxes.iloc[[161, 200]])
+
+    cow_box = default_boxes.centerboxes.iloc[100]
+    cow_box.x_center += 0.5 * cow_box.width
+    cow_box.width *= 0.5
+    cow_box.height *= 0.1
+    cow_box = BoundBoxArray.from_centerboxes([cow_box.as_matrix()])
+    assert np.allclose(bboxes.loc["cow"], cow_box)
 
     assert annotated_image.filename == filename
