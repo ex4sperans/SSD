@@ -55,6 +55,7 @@ def non_maximum_supression(confidences, offsets, default_boxes,
                         default_boxes.iloc[sorted_confidence_idx].as_matrix())
 
     # apply offsets and construct BoundBoxArray with annotations
+    offsets = np.clip(offsets, 0, 1)
     offsets = BoundBoxArray.from_centerboxes(offsets)
     corrected_boxes = apply_offsets(default_boxes, offsets)
     corrected_boxes = BoundBoxArray.from_centerboxes(corrected_boxes)

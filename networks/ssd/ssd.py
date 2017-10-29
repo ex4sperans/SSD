@@ -424,45 +424,38 @@ class SSD:
             print("Iteration: {}, loss: {}".format(iteration, loss))
             self.train_writer.add_summary(summary, global_step=self.get_step())
 
+    def _make_prediction(self, image, loader, filename, save_path):
+
+        feed_dict = {self.test_images: [image], self.is_training: False}
+        confidences, corrections = self._confidences_and_corrections(feed_dict)
+
+        image = non_maximum_supression(
+                                confidences=confidences.squeeze(),
+                                offsets=corrections.squeeze(),
+                                default_boxes=loader.default_boxes,
+                                image=image,
+                                class_mapping=loader._test.class_mapping,
+                                nms_threshold=self.config.nms_threshold,
+                                max_boxes=self.config.max_boxes,
+                                filename=filename)
+
+        if image.bboxes is not None:
+            image.plot_image_with_bboxes(save_path,
+                                         colormap=loader._test.colormap,
+                                         filename=filename)
+
     def _test_iteration(self, loader, iteration):
 
         image, filename = loader.single_train_image()
-        feed_dict = {self.test_images: [image], self.is_training: False}
-        confidences, corrections = self._confidences_and_corrections(feed_dict)
-
-        image = non_maximum_supression(
-                                confidences=confidences.squeeze(),
-                                offsets=corrections.squeeze(),
-                                default_boxes=loader.default_boxes,
-                                image=image,
-                                class_mapping=loader._test.class_mapping,
-                                nms_threshold=self.config.nms_threshold,
-                                max_boxes=self.config.max_boxes,
-                                filename=filename)
-
-        if image.bboxes is not None:
-            image.plot_image_with_bboxes("./predictions/train",
-                                         colormap=loader._test.colormap,
-                                         filename="{}_{}"
-                                         .format(image.filename, iteration))
-
+        self._make_prediction(image,
+                              loader,
+                              filename="{}_{}"
+                              .format(filename, iteration),
+                              save_path="./predictions/train")
 
         image, filename = loader.single_test_image()
-        feed_dict = {self.test_images: [image], self.is_training: False}
-        confidences, corrections = self._confidences_and_corrections(feed_dict)
-
-        image = non_maximum_supression(
-                                confidences=confidences.squeeze(),
-                                offsets=corrections.squeeze(),
-                                default_boxes=loader.default_boxes,
-                                image=image,
-                                class_mapping=loader._test.class_mapping,
-                                nms_threshold=self.config.nms_threshold,
-                                max_boxes=self.config.max_boxes,
-                                filename=filename)
-
-        if image.bboxes is not None:
-            image.plot_image_with_bboxes("./predictions/test",
-                                         colormap=loader._test.colormap,
-                                         filename="{}_{}"
-                                         .format(image.filename, iteration))
+        self._make_prediction(image,
+                              loader,
+                              filename="{}_{}"
+                              .format(filename, iteration),
+                              save_path="./predictions/test")
