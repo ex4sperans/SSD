@@ -107,6 +107,7 @@ class SSD:
     def _batch_norm(self, net, scope):
 
         return slim.batch_norm(net,
+                               decay=self.config.batch_norm_decay,
                                scale=True,
                                updates_collections=None,
                                is_training=self.is_training,
