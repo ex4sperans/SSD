@@ -109,9 +109,17 @@ class VOCLoader:
     def single_train_image(self):
 
         image = random.choice(self._train)
-        return image.image, image.filename
+        filename = image.filename
+
+        # labels and offsets are omitted 
+        normalized, _, _ = self.process_image(image)
+        return normalized, image.filename
 
     def single_test_image(self):
 
         image = random.choice(self._test)
-        return image.image, image.filename
+        filename = image.filename
+
+        # labels and offsets are omitted 
+        normalized, _, _ = self.process_image(image)
+        return normalized, image.filename
