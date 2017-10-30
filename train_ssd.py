@@ -85,7 +85,6 @@ loader = VOCLoader(args.train_images,
                    args.test_annotations,
                    default_boxes=default_boxes,
                    matching_threshold=config.matching_threshold,
-                   resize_to=config.input_shape,
-                   max_samples=100)
+                   resize_to=config.input_shape)
 # fit the model to data
 model.fit(loader)
