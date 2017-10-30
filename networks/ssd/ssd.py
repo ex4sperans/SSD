@@ -264,13 +264,12 @@ class SSD:
                            lambda: tf.slice(top, [k-1], [1]),
                            lambda: tf.constant([1.0]))
 
-        # there is a need to concatenate arguments to map,
+        # there is a need to concatenate arguments of map,
         # since map doesn't accept multiple arguments
-
         map_inputs = tf.concat((top_wrong_confidences \
                                 * non_positive_mask,
                                 n_negatives),
-                               1)
+                               axis=1)
 
         thresholds = tf.map_fn(compute_threshold, map_inputs)
 
@@ -282,7 +281,6 @@ class SSD:
         return positives, negatives
 
     def _create_optimizer(self, loss):
-
 
         with tf.variable_scope("optimizer"):
 
@@ -324,7 +322,7 @@ class SSD:
                                         initializer=tf.ones(shape=(),
                                                             dtype=tf.int32),
                                         trainable=False)
-            self.sess.run(tf.variables_initializer([self.step]))
+            self._init_vars([self.step])
 
     def get_step(self):
         return self.sess.run(self.step)
@@ -369,8 +367,8 @@ class SSD:
     def n_classes(self):
         return len(self.config.classnames)
 
-    def _init_vars(self, vars_=None):
-        self.sess.run(tf.variables_initializer(vars_))
+    def _init_vars(self, var_list):
+        self.sess.run(tf.variables_initializer(var_list))
 
     def save_model(self, path=None, sess=None):
 
