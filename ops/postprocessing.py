@@ -80,10 +80,14 @@ def non_maximum_supression(confidences, offsets, default_boxes,
         non_matching = (top_boxes.iou(box) < nms_threshold).squeeze()
         matching = np.logical_not(non_matching)
 
-        other_class = top_boxes.classnames != classname
-        matching_other_class = np.logical_and(matching, other_class)
+        box_class = [top_boxes_classname == classname
+                     for top_boxes_classname
+                     in top_boxes.classnames]
 
-        if non_matching.all() or matching_other_class.all():
+        matching_box_class = np.logical_and(matching, box_class)
+        # add box if either it doesn't match with any of the already
+        # selected boxes or all matches are with the other class
+        if non_matching.all() or not matching_box_class.any():
             top_boxes = top_boxes.append(box)
 
     return AnnotatedImage(image, top_boxes, filename, bboxes_normalized=True)

@@ -8,7 +8,7 @@ from ops.default_boxes import get_default_boxes
 
 def test_non_maximum_supression():
 
-    default_boxes = get_default_boxes([(9, 9, 32), (5, 5, 32)],
+    default_boxes = get_default_boxes([(9, 9, 32), (3, 3, 32)],
                                       [(1, 1/3, 3), (1, 1/3, 3)])
     n_boxes = len(default_boxes)
 
@@ -22,12 +22,12 @@ def test_non_maximum_supression():
     confidences[5] = (0.0, 0.05, 0.9, 0.05)
     # default box #101 should be associated with class `cow`
     confidences[100] = (0.0, 0.05, 0.0, 0.95)
-    # default box #142 should be associated with class `cat`
-    # and box #141 and #143 should NOT since they
+    # default box #245 should be associated with class `cat`
+    # and box #244 and #246 should NOT since they
     # have lower confidence and these boxes have big overlap
-    confidences[140] = (0.0, 0.75, 0, 0.25)
-    confidences[141] = (0.0, 0.9, 0.1, 0.0)
-    confidences[142] = (0.0, 0.8, 0.1, 0.1)
+    confidences[243] = (0.0, 0.75, 0, 0.25)
+    confidences[244] = (0.0, 0.9, 0.1, 0.0)
+    confidences[245] = (0.0, 0.8, 0.1, 0.1)
     # default box #201 should be associated with class `cat`
     confidences[200] = (0.0, 0.70, 0, 0.30)
 
@@ -52,7 +52,7 @@ def test_non_maximum_supression():
     assert set(bboxes.classnames) == {"cat", "dog", "cow"}
     assert np.allclose(bboxes.loc["dog"], default_boxes.iloc[5])
     assert np.allclose(bboxes.loc["cat"],
-                       default_boxes.iloc[[141, 200]])
+                       default_boxes.iloc[[244, 200]])
 
     cow_box = default_boxes.centerboxes.iloc[100]
     cow_box.x_center += 0.5 * cow_box.width
