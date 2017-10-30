@@ -85,7 +85,7 @@ def non_maximum_supression(confidences, offsets, default_boxes,
                      in top_boxes.classnames]
 
         matching_box_class = np.logical_and(matching, box_class)
-        # add box if either it doesn't match with any of the already
+        # add box if it either doesn't match with any of the already
         # selected boxes or all matches are with the other class
         if non_matching.all() or not matching_box_class.any():
             top_boxes = top_boxes.append(box)

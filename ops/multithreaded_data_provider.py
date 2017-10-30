@@ -14,9 +14,10 @@ class TensorProvider():
         """Initialize a class to provide a tensors with input data.
 
         Args:
-            capacity: maximum queue size.
+            capacity: int, maximum queue size.
             sess: a tensorflow session.
             dtypes: list of data types.
+            number_of_threads: int, number of threads to use
         """
 
         self.dtypes = dtypes
@@ -25,12 +26,13 @@ class TensorProvider():
 
         self.queue = tf.FIFOQueue(capacity=capacity, dtypes=dtypes)
 
-        self.q_size = self.queue.size()
+    @property
+    def qsize(self):
+        return self.queue.size()
 
     def get_input(self):
         """Return input tensors"""
-        self.batch = self.queue.dequeue()
-        return self.batch
+        return self.queue.dequeue()
 
     def set_data_provider(self, data_provider):
         """Set data provider to generate inputs.
