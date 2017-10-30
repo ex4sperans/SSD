@@ -435,14 +435,14 @@ class SSD:
                                 offsets=corrections.squeeze(),
                                 default_boxes=loader.default_boxes,
                                 image=image,
-                                class_mapping=loader._test.class_mapping,
+                                class_mapping=loader.test.class_mapping,
                                 nms_threshold=self.config.nms_threshold,
                                 max_boxes=self.config.max_boxes,
                                 filename=filename)
 
         if image.bboxes is not None:
             image.plot_image_with_bboxes(save_path,
-                                         colormap=loader._test.colormap,
+                                         colormap=loader.test.colormap,
                                          filename=filename)
 
     def _test_iteration(self, loader, iteration):
