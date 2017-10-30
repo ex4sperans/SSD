@@ -50,6 +50,19 @@ class Config:
                                 kernel_size=(3, 3),
                                 box_ratios=(1,))]
 
+
+    @staticmethod
+    def train_transform(image):
+        return (image
+                .normalize(255)
+                .normalize_bboxes())
+
+    @staticmethod
+    def test_transform(image):
+        return (image
+                .normalize(255)
+                .normalize_bboxes())
+
     classnames = VOCDataset.classnames
     matching_threshold = 0.45
     nms_threshold = 0.45
@@ -78,11 +91,13 @@ config = Config()
 model = SSD(config, resume=False, mode=TRAIN)
 # generate default boxes
 default_boxes = get_default_boxes(model.out_shapes, model.box_ratios)
-
+# create data loader
 loader = VOCLoader(args.train_images,
                    args.train_annotations,
                    args.test_images,
                    args.test_annotations,
+                   config.train_transform,
+                   config.test_transform,
                    default_boxes=default_boxes,
                    matching_threshold=config.matching_threshold,
                    resize_to=config.input_shape)

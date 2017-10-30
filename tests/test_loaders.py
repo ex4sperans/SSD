@@ -58,10 +58,9 @@ def test_voc_loader_process_image(voc_loader):
         (image,
          labels,
          offsets) = voc_loader.process_image(image, voc_loader.train_transform)
-        expected_labels = (VOCDataset.class_mapping[n] for n in classnames)
+        expected_labels = set(VOCDataset.class_mapping[n] for n in classnames)
 
-        # 0 stands for background class
-        assert set(expected_labels).union({0}) == set(labels)
+        assert expected_labels.union({voc_loader.background}) == set(labels)
 
 
 def test_voc_loader_single_train_image(voc_loader):

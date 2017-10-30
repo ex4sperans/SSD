@@ -32,6 +32,8 @@ class VOCDataset:
                                 chair=19,
                                 horse=20
                                )
+    # background class
+    background = 0
 
     classnames = list(class_mapping.keys())
     number_of_classes = len(classnames)

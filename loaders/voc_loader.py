@@ -7,6 +7,11 @@ from datasets.voc_dataset import VOCDataset
 
 class VOCLoader:
 
+    classnames = VOCDataset.classnames
+    background = VOCDataset.background
+    class_mapping = VOCDataset.class_mapping
+
+
     def __init__(self, train_images_path, train_annotations_path,
                  test_images_path, test_annotations_path,
                  train_transform, test_transform,
