@@ -11,26 +11,26 @@ from containers.image import AnnotatedImage
 
 class VOCDataset:
 
-    class_mapping = OrderedDict(pottedplant=1,
-                                boat=2,
-                                aeroplane=3,
-                                motorbike=4,
-                                cow=5,
-                                sheep=6,
-                                bus=7,
-                                bicycle=8,
-                                person=9,
-                                car=10,
-                                diningtable=11,
-                                cat=12,
-                                tvmonitor=13,
-                                sofa=14,
-                                bird=15,
-                                train=16,
-                                bottle=17,
-                                dog=18,
-                                chair=19,
-                                horse=20
+    class_mapping = OrderedDict([("pottedplant", 1),
+                                 ("boat", 2),
+                                 ("aeroplane", 3),
+                                 ("motorbike", 4),
+                                 ("cow", 5),
+                                 ("sheep", 6),
+                                 ("bus", 7),
+                                 ("bicycle", 8),
+                                 ("person", 9),
+                                 ("car", 10),
+                                 ("diningtable", 11),
+                                 ("cat", 12),
+                                 ("tvmonitor", 13),
+                                 ("sofa", 14),
+                                 ("bird", 15),
+                                 ("train", 16),
+                                 ("bottle", 17),
+                                 ("dog", 18),
+                                 ("chair", 19),
+                                 ("horse", 20)]
                                )
     # background class
     background = 0
