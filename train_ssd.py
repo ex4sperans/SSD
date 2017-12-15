@@ -36,7 +36,6 @@ class Config:
     input_shape = (300, 300, 3)
     weight_decay = 0.0005
     batch_norm_decay = 0.995
-    momentum = 0.9
     batch_size = 32
 
     out_layers = [OutConvoLayer(name="out_convo4_3",

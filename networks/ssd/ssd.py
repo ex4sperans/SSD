@@ -287,9 +287,8 @@ class SSD:
             self.learning_rate = tf.placeholder(dtype=tf.float32,
                                                 name="learning_rate")
 
-            optimizer = tf.train.MomentumOptimizer(
-                            learning_rate=self.learning_rate,
-                            momentum=self.config.momentum)
+            optimizer = tf.train.AdamOptimizer(
+                            learning_rate=self.learning_rate)
             grads_and_vars = optimizer.compute_gradients(loss)
             self.train_step = optimizer.apply_gradients(grads_and_vars,
                                                         global_step=self.step)
