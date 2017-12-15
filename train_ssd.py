@@ -22,6 +22,8 @@ parser.add_argument("--test_images", type=str, required=True,
                     help="path to test images")
 parser.add_argument("--test_annotations", type=str, required=True,
                     help="path to test annotations")
+parser.add_argument("--max_images", type=int,
+                    help="maximum number of images to load")
 
 args = parser.parse_args()
 
@@ -40,15 +42,27 @@ class Config:
     out_layers = [OutConvoLayer(name="out_convo4_3",
                                 parent="vgg_16.conv4_3",
                                 kernel_size=(3, 3),
-                                box_ratios=(1,)),
+                                box_ratios=(1, 1/2, 2, 1/3, 3)),
                   OutConvoLayer(name="out_convo7",
                                 parent="conv7",
                                 kernel_size=(3, 3),
-                                box_ratios=(1,)),
+                                box_ratios=(1, 1/2, 2, 1/3, 3)),
+                  OutConvoLayer(name="out_convo8_2",
+                                parent="conv8_2",
+                                kernel_size=(3, 3),
+                                box_ratios=(1, 1/2, 2, 1/3, 3)),
                   OutConvoLayer(name="out_convo9_2",
                                 parent="conv9_2",
                                 kernel_size=(3, 3),
-                                box_ratios=(1,))]
+                                box_ratios=(1, 1/2, 2, 1/3, 3)),
+                  OutConvoLayer(name="out_convo10_2",
+                                parent="conv10_2",
+                                kernel_size=(3, 3),
+                                box_ratios=(1, 1/2, 2, 1/3, 3)),
+                  OutConvoLayer(name="out_convo11_2",
+                                parent="conv11_2",
+                                kernel_size=(3, 3),
+                                box_ratios=(1, 1/2, 2, 1/3, 3))]
 
 
     @staticmethod
@@ -100,6 +114,7 @@ loader = VOCLoader(args.train_images,
                    config.test_transform,
                    default_boxes=default_boxes,
                    matching_threshold=config.matching_threshold,
-                   resize_to=config.input_shape)
+                   resize_to=config.input_shape,
+                   max_samples=args.max_images)
 # fit the model to data
 model.fit(loader)
