@@ -137,7 +137,8 @@ class AnnotatedImage:
                          colormap, save_path, filename)
 
     def plot_matching_bboxes(self, save_path, default_boxes, threshold,
-                             class_mapping, colormap, filename=None):
+                             class_mapping, colormap, background_class,
+                             filename=None):
         """Plot and save image with matching bounding boxes"""
 
         filename = filename or self.filename
@@ -152,6 +153,7 @@ class AnnotatedImage:
                                                         class_mapping)
 
         reverse_mapping = reverse_dict(class_mapping)
+        reverse_mapping[background_class] = "background"
         classnames = [reverse_mapping[label] for label in labels]
 
         # recover default boxes
@@ -159,7 +161,7 @@ class AnnotatedImage:
         scale = (1 / height, 1 / width)
         recovered = default_boxes.rescale(scale)
 
-        matched = BoundBoxArray.from_boxes(recovered.as_matrix(), classnames)
+        matched = BoundBoxArray.from_boxes(recovered.as_matrix(), classnames)        
         matched = matched[matched.classnames != "background"]
 
         plot_with_bboxes(normalized.image, matched,

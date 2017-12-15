@@ -28,7 +28,7 @@ class BoundBoxArray(pd.DataFrame):
             raise AttributeError("Current BoundBoxArray index doesn't"
                                  "represent boxes classnames. Use obj.index "
                                  "to get explicitly get index.")
-        return list(self.index)
+        return self.index
 
     @property
     def boundboxes(self):
