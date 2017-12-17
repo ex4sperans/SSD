@@ -96,7 +96,7 @@ class Config:
     iterations = 100000
 
     save_interval = 1000
-    log_interval = 100
+    log_interval = 25
     test_interval = 50
 
 # create config and model

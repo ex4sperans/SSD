@@ -19,7 +19,6 @@ OutConvoLayer = collections.namedtuple("OutConvoLayer",
                                         "kernel_size",
                                         "box_ratios"])
 
-
 TRAIN = "train"
 INFERENCE = "inference"
 MODES = (TRAIN, INFERENCE)
@@ -64,34 +63,55 @@ class SSD:
 
     def _create_placeholders(self):
 
-        self.is_training = tf.placeholder(dtype=tf.bool, name="is_training")
+        with tf.name_scope("inputs"):
+            self.is_training = tf.placeholder(dtype=tf.bool, name="is_training")
 
-        self.test_images = tf.placeholder_with_default(
-                                input=tf.zeros((1,) + self.config.input_shape),
-                                shape=(None,) + self.config.input_shape,
-                                name="test_images")
-        if self.mode is TRAIN:
-            self.tensor_provider = TensorProvider(capacity=20,
-                                                  sess=self.sess,
-                                                  # images, labels, offsets
-                                                  dtypes=(tf.float32,
-                                                          tf.int32,
-                                                          tf.float32),
-                                                  number_of_threads=2)
+            if self.mode is TRAIN:
+                self.train_tensor_provider = TensorProvider(
+                    capacity=20,
+                    sess=self.sess,
+                    # images, labels, offsets
+                    dtypes=(tf.float32,
+                            tf.int32,
+                            tf.float32),
+                    number_of_threads=4)
 
-            (self.train_images,
-             self.labels,
-             self.offsets) = self.tensor_provider.get_input()
+                self.test_tensor_provider = TensorProvider(
+                    capacity=2,
+                    sess=self.sess,
+                    # images, labels, offsets
+                    dtypes=(tf.float32,
+                            tf.int32,
+                            tf.float32),
+                    number_of_threads=2)
 
-            # make images to be output of tensor provider on train
-            # and placeholder on test
-            self.images = tf.cond(self.is_training,
-                                  lambda: self.train_images,
-                                  lambda: self.test_images)
+                (self.train_images,
+                 self.train_labels,
+                 self.train_offsets) = self.train_tensor_provider.get_input()
+                
+                (self.test_images,
+                 self.test_labels,
+                 self.test_offsets) = self.test_tensor_provider.get_input()
 
-        elif self.mode is INFERENCE:
-            # just use placeholder as inputs on inference
-            self.images = self.test_images
+                # choose inputs basen on `is_training` placeholder
+                self.images = tf.cond(self.is_training,
+                                     lambda: self.train_images,
+                                     lambda: self.test_images)
+
+                self.labels = tf.cond(self.is_training,
+                                     lambda: self.train_labels,
+                                     lambda: self.test_labels)
+
+                self.offsets = tf.cond(self.is_training,
+                                     lambda: self.train_offsets,
+                                     lambda: self.test_offsets)
+
+            elif self.mode is INFERENCE:
+                # just use placeholder as inputs on inference
+                self.images = tf.placeholder_with_default(
+                    input=tf.zeros((1,) + self.config.input_shape),
+                    shape=(None,) + self.config.input_shape,
+                    name="test_images")
 
         self.vgg_16 = VGG_16(self.config.input_shape, self.images)
 
@@ -346,8 +366,8 @@ class SSD:
         if not hasattr(self, '_sess'):
             config = tf.ConfigProto()
             config.gpu_options.allow_growth = True
-            config.inter_op_parallelism_threads = 8
-            config.intra_op_parallelism_threads = 8
+            config.inter_op_parallelism_threads = 4
+            config.intra_op_parallelism_threads = 4
             self._sess = tf.Session(config=config)
         return self._sess
 
@@ -394,33 +414,56 @@ class SSD:
     def fit(self, loader):
 
         with self.graph.as_default():
-            data_provider = functools.partial(loader.train_batch,
+            train_data_provider = functools.partial(
+                                              loader.train_batch,
                                               batch_size=self.config.batch_size)
-            self.tensor_provider.set_data_provider(data_provider)
+            test_data_provider = functools.partial(
+                                              loader.test_batch,
+                                              batch_size=self.config.batch_size)
+            self.train_tensor_provider.set_data_provider(train_data_provider)
+            self.test_tensor_provider.set_data_provider(test_data_provider)
 
             for iteration in range(self.get_step(), self.config.iterations):
                 self._train_iteration(iteration)
 
-                if iteration % self.config.test_interval == 0:
-                    self._test_iteration(loader, iteration)
+                if iteration % self.config.log_interval == 0:        
+                    self._evaluate(iteration)
+
+                # if iteration % self.config.test_interval == 0:
+                #     self._test_iteration(loader, iteration)
 
                 if iteration % self.config.save_interval == 0:
                     self.save_model()
 
     def _train_iteration(self, iteration):
 
-        fetches = [self.loss, self.summary, self.train_step]
+        fetches = [self.train_step]
 
         learning_rate = self.config.learning_rate_schedule(iteration)
 
         feed_dict = {self.learning_rate: learning_rate,
                      self.is_training: True}
 
-        loss, summary, _ = self.sess.run(fetches, feed_dict)
+        self.sess.run(fetches, feed_dict)
 
-        if iteration % self.config.log_interval == 0:
-            print("Iteration: {}, loss: {}".format(iteration, loss))
-            self.train_writer.add_summary(summary, global_step=self.get_step())
+    def _evaluate(self, iteration):
+        
+        fetches = [self.loss, self.summary]
+
+        # train batch
+        feed_dict = {self.is_training: True}
+
+        train_loss, summary = self.sess.run(fetches, feed_dict)
+        self.train_writer.add_summary(summary, global_step=self.get_step())
+
+        # test batch
+        feed_dict = {self.is_training: False}
+
+        test_loss, summary = self.sess.run(fetches, feed_dict)
+        self.test_writer.add_summary(summary, global_step=self.get_step())
+
+        print("Iteration: {}, loss on train: {}, loss on test: {}"
+              .format(iteration, train_loss, test_loss))
 
     def _make_prediction(self, image, loader, filename, save_path):
 
@@ -457,3 +500,5 @@ class SSD:
                               filename="{}_{}"
                               .format(filename, iteration),
                               save_path="./predictions/test")
+
+    
