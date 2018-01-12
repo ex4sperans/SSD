@@ -63,9 +63,9 @@ def get_default_boxes(out_shapes, box_ratios):
     for out_shape, scale, layer_box_ratios in layer_params:
         height, width = height_and_width(out_shape)
         layer_boxes = [[[get_default_box(i, j, scale, box_ratio, width, height)
-                         for i in range(height)]
-                        for j in range(width)]
-                       for box_ratio in layer_box_ratios]
+                         for box_ratio in layer_box_ratios]
+                        for i in range(height)]
+                       for j in range(width)]
         default_boxes.append(layer_boxes)
 
     return BoundBoxArray.from_centerboxes(flatten_list(default_boxes)).clip()
