@@ -39,6 +39,7 @@ def ssd_config():
         weight_decay = 0.0005
         batch_norm_decay = 0.995
         tune_base = True
+        neg_pos_ratio = 3
 
         out_layers = [OutConvoLayer(name="out_convo4_3",
                                     parent="vgg_16.conv4_3",

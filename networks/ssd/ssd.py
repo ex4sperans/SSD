@@ -330,9 +330,8 @@ class SSD:
 
             optimizer = tf.train.AdamOptimizer(
                             learning_rate=self.learning_rate)
-            grads_and_vars = optimizer.compute_gradients(loss)
+            grads_and_vars = optimizer.compute_gradients(loss, var_list=var_list)
             self.train_step = optimizer.apply_gradients(grads_and_vars,
-                                                        var_list=var_list,
                                                         global_step=self.step)
 
     def _create_summaries(self):
