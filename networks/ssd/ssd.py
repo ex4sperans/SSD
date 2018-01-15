@@ -348,7 +348,7 @@ class SSD:
                           "vgg_16.conv4_3", "vgg_16.conv5_3"):
 
                 tf.summary.image(
-                    layer
+                    layer,
                     getattr(self, layer)[:, :, :, :3],
                     max_outputs=1
                 )

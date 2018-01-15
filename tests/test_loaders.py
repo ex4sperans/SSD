@@ -19,8 +19,11 @@ def voc_loader():
     TEST_IMAGES = os.path.join(DIRNAME, "mini_voc/test/images")
     TEST_ANNOTATIONS = os.path.join(DIRNAME, "mini_voc/test/annotations")
 
-    default_boxes = get_default_boxes([(9, 9, 32), (5, 5, 32)],
-                                       2 * [(1, 3, 1/3)])
+    default_boxes = get_default_boxes([(9, 9, 32),
+                                       (5, 5, 32),
+                                       (3, 3, 32),
+                                       (16, 16, 32)],
+                                       4 * [(1, 3, 1/3)])
 
     return VOCLoader(TRAIN_IMAGES, TRAIN_ANNOTATIONS,
                      TEST_IMAGES, TEST_ANNOTATIONS,
@@ -60,10 +63,10 @@ def test_voc_loader_process_image(voc_loader):
          offsets) = voc_loader.process_image(image, voc_loader.train_transform)
         expected_labels = set(VOCDataset.class_mapping[n] for n in classnames)
 
-        assert expected_labels.union({voc_loader.background}) == set(labels)
+        assert expected_labels.union({voc_loader.background}) >= set(labels)
 
 
 def test_voc_loader_single_train_image(voc_loader):
 
     image, filename = voc_loader.single_train_image()
-    assert (image >= 0).all and (image <= 1).all()
+    assert (image >= 0).all() and (image <= 1).all()
