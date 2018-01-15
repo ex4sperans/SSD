@@ -350,6 +350,12 @@ class SSD:
                 max_outputs=1
             )
 
+            tf.summary.image(
+                "vgg_16.conv3_2",
+                self.vgg_16.conv3_2[:, :, :, :3],
+                max_outputs=1
+            )
+
             self.summary = tf.summary.merge_all()
 
             train_summary_path = os.path.join(self.config.summary_path,
