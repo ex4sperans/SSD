@@ -344,17 +344,14 @@ class SSD:
             tf.summary.scalar("min_positives", self.min_positives)
             tf.summary.scalar("min_negatives", self.min_negatives)
 
-            tf.summary.image(
-                "vgg_16.conv5_3",
-                self.vgg_16.conv5_3[:, :, :, :3],
-                max_outputs=1
-            )
+            for layer in ("vgg_16.conv3_2", "vgg_16.conv4_1",
+                          "vgg_16.conv4_3", "vgg_16.conv5_3"):
 
-            tf.summary.image(
-                "vgg_16.conv3_2",
-                self.vgg_16.conv3_2[:, :, :, :3],
-                max_outputs=1
-            )
+                tf.summary.image(
+                    layer
+                    getattr(self, layer)[:, :, :, :3],
+                    max_outputs=1
+                )
 
             self.summary = tf.summary.merge_all()
 
