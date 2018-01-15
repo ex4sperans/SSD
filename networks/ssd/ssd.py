@@ -229,18 +229,25 @@ class SSD:
     def _create_loss(self):
 
         with tf.name_scope("loss"):
-            (self.positives,
-            self.negatives) = self._positives_and_negatives(
-                                                    self.confidences,
-                                                    self.labels,
-                                                    self.config.neg_pos_ratio)
+            self.positives, self.negatives = self._positives_and_negatives(
+                self.confidences,
+                self.labels,
+                self.config.neg_pos_ratio
+            )
+            self.n_positives = tf.reduce_sum(self.positives, 1)
+            self.n_negatives = tf.reduce_sum(self.negatives, 1)
+            # for summaries
+            self.min_positives = tf.reduce_min(self.n_positives)
+            self.min_negatives = tf.reduce_min(self.n_negatives)
+        
             positives_and_negatives = self.positives + self.negatives
             classification_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
-                                                    logits=self.predicted_labels,
-                                                    labels=self.labels)
+                logits=self.predicted_labels,
+                labels=self.labels
+            )
             classification_loss *= positives_and_negatives
             classification_loss = tf.reduce_sum(classification_loss, 1)
-            total_pos_neg = tf.reduce_sum(positives_and_negatives, 1)
+            total_pos_neg = self.n_positives + self.n_negatives
             classification_loss /= total_pos_neg + 1e-6
 
             localization_loss = self._smooth_L1(self.predicted_offsets \
@@ -248,11 +255,11 @@ class SSD:
             localization_loss = tf.reduce_sum(localization_loss, 2)
             localization_loss *= self.positives
             localization_loss = tf.reduce_sum(localization_loss, 1)
-            localization_loss /= tf.reduce_sum(self.positives, 1) + 1e-6
+            localization_loss /= self.n_positives + 1e-6
 
             # average over minibatch
-            self.classification_loss = tf.reduce_mean(classification_loss)
-            self.localization_loss = tf.reduce_mean(localization_loss)
+            self.classification_loss = tf.reduce_mean(classification_loss, 0)
+            self.localization_loss = tf.reduce_mean(localization_loss, 0)
 
             self.l2_loss = tf.add_n(tf.losses.get_regularization_losses())
 
@@ -319,6 +326,8 @@ class SSD:
             tf.summary.scalar("classification_loss", self.classification_loss)
             tf.summary.scalar("localization_loss", self.localization_loss)
             tf.summary.scalar("l2_loss", self.l2_loss)
+            tf.summary.scalar("min_positives", self.min_positives)
+            tf.summary.scalar("min_negatives", self.min_negatives)
             self.summary = tf.summary.merge_all()
 
             train_summary_path = os.path.join(self.config.summary_path,
@@ -366,8 +375,8 @@ class SSD:
         if not hasattr(self, '_sess'):
             config = tf.ConfigProto()
             config.gpu_options.allow_growth = True
-            config.inter_op_parallelism_threads = 4
-            config.intra_op_parallelism_threads = 4
+            config.inter_op_parallelism_threads = 8
+            config.intra_op_parallelism_threads = 8
             self._sess = tf.Session(config=config)
         return self._sess
 
