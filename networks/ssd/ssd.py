@@ -349,7 +349,7 @@ class SSD:
 
                 tf.summary.image(
                     layer,
-                    getattr(self, layer)[:, :, :, :3],
+                    self._nested_getattr(self, layer)[:, :, :, :3],
                     max_outputs=1
                 )
 
