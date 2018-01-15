@@ -97,7 +97,7 @@ class Config:
     tune_base = True
 
     save_interval = 1000
-    log_interval = 25
+    log_interval = 50
     test_interval = 50
 
 # create config and model

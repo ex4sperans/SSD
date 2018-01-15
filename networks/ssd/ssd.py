@@ -338,11 +338,18 @@ class SSD:
     def _create_summaries(self):
 
         with tf.name_scope("summaries"):
+
             tf.summary.scalar("classification_loss", self.classification_loss)
             tf.summary.scalar("localization_loss", self.localization_loss)
             tf.summary.scalar("l2_loss", self.l2_loss)
             tf.summary.scalar("min_positives", self.min_positives)
             tf.summary.scalar("min_negatives", self.min_negatives)
+
+            tf.summary.image(
+                "vgg_16.conv5_3",
+                self.vgg_16.conv5_3[:, :, :, :3],
+                max_outputs=1
+            )
 
             self.summary = tf.summary.merge_all()
 
