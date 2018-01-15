@@ -30,7 +30,8 @@ args = parser.parse_args()
 
 class Config:
 
-    model_path = "saved_models/SSD"
+    scope = "SSD"
+    model_path = "saved_models/{scope}".format(scope=scope)
     summary_path = "summaries"
 
     input_shape = (300, 300, 3)
@@ -63,7 +64,6 @@ class Config:
                                 kernel_size=(3, 3),
                                 box_ratios=(1, 1/2, 2, 1/3, 3))]
 
-
     @staticmethod
     def train_transform(image):
         return (image
@@ -94,6 +94,7 @@ class Config:
             return 1e-6
 
     iterations = 100000
+    tune_base = True
 
     save_interval = 1000
     log_interval = 25

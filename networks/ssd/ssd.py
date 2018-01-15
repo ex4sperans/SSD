@@ -29,7 +29,7 @@ class SSD:
     def __init__(self, config, mode, resume=True):
 
         self.config = config
-        self.scope = "SSD"
+        self.scope = self.config.scope
 
         if not mode in MODES:
             raise ValueError("`mode` should be one of {}".format(MODES))
@@ -74,7 +74,8 @@ class SSD:
                     dtypes=(tf.float32,
                             tf.int32,
                             tf.float32),
-                    number_of_threads=4)
+                    number_of_threads=4
+                )
 
                 self.test_tensor_provider = TensorProvider(
                     capacity=2,
@@ -83,7 +84,8 @@ class SSD:
                     dtypes=(tf.float32,
                             tf.int32,
                             tf.float32),
-                    number_of_threads=2)
+                    number_of_threads=2
+                )
 
                 (self.train_images,
                  self.train_labels,
@@ -94,34 +96,45 @@ class SSD:
                  self.test_offsets) = self.test_tensor_provider.get_input()
 
                 # choose inputs basen on `is_training` placeholder
-                self.images = tf.cond(self.is_training,
-                                     lambda: self.train_images,
-                                     lambda: self.test_images)
+                self.images = tf.cond(
+                    self.is_training,
+                    lambda: self.train_images,
+                    lambda: self.test_images
+                )
 
-                self.labels = tf.cond(self.is_training,
-                                     lambda: self.train_labels,
-                                     lambda: self.test_labels)
+                self.labels = tf.cond(
+                    self.is_training,
+                    lambda: self.train_labels,
+                    lambda: self.test_labels
+                )
 
-                self.offsets = tf.cond(self.is_training,
-                                     lambda: self.train_offsets,
-                                     lambda: self.test_offsets)
+                self.offsets = tf.cond(
+                    self.is_training,
+                    lambda: self.train_offsets,
+                    lambda: self.test_offsets
+                )
 
             elif self.mode is INFERENCE:
                 # just use placeholder as inputs on inference
-                self.images = tf.placeholder_with_default(
-                    input=tf.zeros((1,) + self.config.input_shape),
+                self.images = tf.placeholder(
+                    dtype=tf.float32,
                     shape=(None,) + self.config.input_shape,
-                    name="test_images")
+                    name="test_images"
+                )
 
-        self.vgg_16 = VGG_16(self.config.input_shape, self.images)
+        self.vgg_16 = VGG_16(
+            self.config.input_shape,
+            self.images,
+            trainable=self.config.tune_base
+        )
 
     def _create_graph(self):
 
         self.regularizer = slim.l2_regularizer(self.config.weight_decay)
     
-        with tf.variable_scope('feedforward_convo'):
+        with tf.variable_scope("feedforward_convo"):
             self._create_feedforward_convo()
-        with tf.variable_scope('out_convo'):
+        with tf.variable_scope("out_convo"):
             self._create_out_convo()
 
     def _batch_norm(self, net, scope):
@@ -140,6 +153,7 @@ class SSD:
                             weights_regularizer=self.regularizer):
 
             net = self._batch_norm(self.vgg_16.conv5_3, "batch_norm_5_3")
+
             net = slim.conv2d(net, 1024, (3, 3), scope="conv6")
             net = self._batch_norm(net, "batch_norm6")
             self.conv6 = tf.nn.relu(net)
@@ -292,7 +306,7 @@ class SSD:
                            lambda: tf.constant([1.0]))
 
         # there is a need to concatenate arguments of map,
-        # since map doesn't accept multiple arguments
+        # since map doesn"t accept multiple arguments
         map_inputs = tf.concat((top_wrong_confidences \
                                 * non_positive_mask,
                                 n_negatives),
@@ -307,7 +321,7 @@ class SSD:
 
         return positives, negatives
 
-    def _create_optimizer(self, loss):
+    def _create_optimizer(self, loss, var_list=None):
 
         with tf.variable_scope("optimizer"):
 
@@ -318,6 +332,7 @@ class SSD:
                             learning_rate=self.learning_rate)
             grads_and_vars = optimizer.compute_gradients(loss)
             self.train_step = optimizer.apply_gradients(grads_and_vars,
+                                                        var_list=var_list,
                                                         global_step=self.step)
 
     def _create_summaries(self):
@@ -328,6 +343,7 @@ class SSD:
             tf.summary.scalar("l2_loss", self.l2_loss)
             tf.summary.scalar("min_positives", self.min_positives)
             tf.summary.scalar("min_negatives", self.min_negatives)
+
             self.summary = tf.summary.merge_all()
 
             train_summary_path = os.path.join(self.config.summary_path,
@@ -358,7 +374,7 @@ class SSD:
     def _nested_getattr(self, attr):
         # getattr built-in extended with capability
         # of handling nested attributes
-        return functools.reduce(getattr, attr.split('.'), self)
+        return functools.reduce(getattr, attr.split("."), self)
 
     def _smooth_L1(self, x):
 
@@ -372,7 +388,7 @@ class SSD:
 
     @property
     def sess(self):
-        if not hasattr(self, '_sess'):
+        if not hasattr(self, "_sess"):
             config = tf.ConfigProto()
             config.gpu_options.allow_growth = True
             config.inter_op_parallelism_threads = 8

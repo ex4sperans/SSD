@@ -6,21 +6,22 @@ import tensorflow as tf
 from tensorflow.contrib import slim
 
 
-# Imagenet mean values
+# ImageNet mean values
 BLUE = 103.939
 GREEN = 116.779
 RED = 123.68
 
-SAVED_WEIGHTS = os.path.join(os.path.dirname(__file__),
-                             "vgg16_weights.npz")
+SAVED_WEIGHTS = os.path.join(os.path.dirname(__file__), "vgg16_weights.npz")
+
 
 class VGG_16:
 
-    def __init__(self, input_shape, inputs):
+    def __init__(self, input_shape, inputs, trainable=True):
 
         self.input_shape = input_shape
         self.scope = "VGG_16"
         self.inputs = tf.reshape(inputs, (-1,) + self.input_shape)
+        self.trainable = trainable
 
         self._create_graph()
         self.model_vars = self._get_vars_by_scope(self.scope)
@@ -30,7 +31,8 @@ class VGG_16:
         with slim.arg_scope([slim.conv2d],
                             activation_fn=tf.nn.relu,
                             kernel_size=(3, 3),
-                            weights_regularizer=slim.l2_regularizer(0.0005)):
+                            weights_regularizer=slim.l2_regularizer(0.0005),
+                            trainable=self.trainable):
 
             self.conv1_1 = slim.conv2d(inputs, 64, scope='conv1_1')
             self.conv1_2 = slim.conv2d(self.conv1_1, 64, scope='conv1_2')
@@ -58,7 +60,7 @@ class VGG_16:
             return self.pool_5
 
     def _preprocess(self, inputs):
-        # inputs assumed to be RGB images
+        # inputs assumed to be normalized RGB images
         rgb_scaled = inputs * 255.0
         subtracted = rgb_scaled - tf.constant([RED,
                                                GREEN,
