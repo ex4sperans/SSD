@@ -7,9 +7,9 @@ from tensorflow.contrib import slim
 
 
 # ImageNet mean values
-BLUE = 103.939
+RED = 103.939
 GREEN = 116.779
-RED = 123.68
+BLUE = 123.68
 
 SAVED_WEIGHTS = os.path.join(os.path.dirname(__file__), "vgg16_weights.npz")
 
