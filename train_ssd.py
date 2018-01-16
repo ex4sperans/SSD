@@ -26,6 +26,8 @@ parser.add_argument("--max_images", type=int,
                     help="maximum number of images to load")
 parser.add_argument("--scope", type=str, required=True,
                     help="model scope")
+parser.add_argument("--batch_size", type=int, default=32,
+                    help="minibatch size")
 
 args = parser.parse_args()
 
@@ -39,7 +41,7 @@ class Config:
     input_shape = (300, 300, 3)
     weight_decay = 0.0005
     batch_norm_decay = 0.995
-    batch_size = 32
+    batch_size = args.batch_size
 
     out_layers = [OutConvoLayer(name="out_convo4_3",
                                 parent="vgg_16.conv4_3",
