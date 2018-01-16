@@ -121,3 +121,22 @@ def test_random_hflip():
         np.array([0.5, 0, 1, 1])
     )
     assert np.array_equal(np.fliplr(image.image), flipped_image.image)
+
+
+def test_random_crop():
+
+    bboxes = BoundBoxArray.from_boundboxes([(0, 0, 150, 150),
+                                            (0, 0, 120, 120),
+                                            (150, 150, 300, 300)],
+                                           classnames=["cat", "pig", "dog"])
+    image = AnnotatedImage(np.ones((300, 300, 3)), bboxes)
+    image = image.normalize_bboxes()
+
+    # perform 20 random crops
+    for _ in range(20):
+        cropped_image = image.random_crop(probability=0.9)
+        assert cropped_image.size == (300, 300)
+        assert (cropped_image.bboxes.x_min >= 0).all()
+        assert (cropped_image.bboxes.y_min >= 0).all()
+        assert (cropped_image.bboxes.x_max <= 1).all()
+        assert (cropped_image.bboxes.y_max <= 1).all()

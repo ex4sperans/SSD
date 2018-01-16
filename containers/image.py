@@ -128,6 +128,20 @@ class AnnotatedImage:
         else:
             return self
 
+    def random_crop(self, probability=0.25):
+        """Crops images with probability `probability`"""
+
+        if np.random.uniform() < probability:
+
+            x_min = np.random.uniform(0, 0.3)
+            x_max = np.random.uniform(0.7, 1.0)
+            y_min = np.random.uniform(0, 0.3)
+            y_max = np.random.uniform(0.7, 1.0)
+
+            return augmentation.crop(self, (x_min, y_min, x_max, y_max))
+        else:
+            return self
+
     def plot(self, save_path, filename=None):
         """Plot and save image"""
 
