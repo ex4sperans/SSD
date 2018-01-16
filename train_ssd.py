@@ -24,15 +24,17 @@ parser.add_argument("--test_annotations", type=str, required=True,
                     help="path to test annotations")
 parser.add_argument("--max_images", type=int,
                     help="maximum number of images to load")
+parser.add_argument("--scope", type=str, required=True,
+                    help="model scope")
 
 args = parser.parse_args()
 
 
 class Config:
 
-    scope = "SSD"
+    scope = args.scope
     model_path = "saved_models/{scope}".format(scope=scope)
-    summary_path = "summaries"
+    summary_path = "summaries/{scope}".format(scope=scope)
 
     input_shape = (300, 300, 3)
     weight_decay = 0.0005
@@ -68,7 +70,8 @@ class Config:
     def train_transform(image):
         return (image
                 .normalize(255)
-                .normalize_bboxes())
+                .normalize_bboxes(),
+                .random_flip())
 
     @staticmethod
     def test_transform(image):
