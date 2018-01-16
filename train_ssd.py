@@ -70,7 +70,7 @@ class Config:
     def train_transform(image):
         return (image
                 .normalize(255)
-                .normalize_bboxes(),
+                .normalize_bboxes()
                 .random_flip())
 
     @staticmethod
