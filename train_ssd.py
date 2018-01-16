@@ -69,10 +69,10 @@ class Config:
     @staticmethod
     def train_transform(image):
         return (image
-                .normalize(255)
                 .normalize_bboxes()
                 .random_hflip(probability=0.5)
-                .random_crop(probability=0.5))
+                .random_crop(probability=0.5)
+                .normalize(255))
 
     @staticmethod
     def test_transform(image):
