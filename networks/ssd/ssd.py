@@ -29,7 +29,7 @@ class SSD:
     def __init__(self, config, mode, resume=True):
 
         self.config = config
-        self.scope = self.config.scope
+        self.scope = "SSD"
 
         if not mode in MODES:
             raise ValueError("`mode` should be one of {}".format(MODES))
