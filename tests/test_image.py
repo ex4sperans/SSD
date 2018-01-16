@@ -92,3 +92,32 @@ def test_labels_and_offsets():
     # cat matched perfectly, second default box
     # wasn't matched
     assert (offsets[[0, 1]] == [0, 0, 0, 0]).all()
+
+
+def test_random_hflip():
+
+    bboxes = BoundBoxArray.from_boundboxes([(100, 100, 200, 200)],
+                                           classnames=["cat"])
+    image = AnnotatedImage(np.ones((300, 300, 3)), bboxes)
+    image = image.normalize_bboxes()
+
+    flipped_image = image.random_hflip(probability=1.0)
+    # check that centered bbox wasn't flipped
+    assert np.allclose(
+        flipped_image.bboxes.boundboxes.as_matrix(),
+        image.bboxes.boundboxes.as_matrix()
+    )
+    # but image was
+    assert np.array_equal(np.fliplr(image.image), flipped_image.image)
+
+    bboxes = BoundBoxArray.from_boundboxes([(0, 0, 150, 300)],
+                                           classnames=["cat"])
+    image = AnnotatedImage(np.ones((300, 300, 3)), bboxes)
+    image = image.normalize_bboxes()
+
+    flipped_image = image.random_hflip(probability=1.0)
+    assert np.allclose(
+        flipped_image.bboxes.boundboxes.as_matrix(),
+        np.array([0.5, 0, 1, 1])
+    )
+    assert np.array_equal(np.fliplr(image.image), flipped_image.image)

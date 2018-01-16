@@ -5,6 +5,7 @@ from ops.misc import height_and_width, file_name, reverse_dict
 from ops.io_ops import parse_annotation, load_image
 from ops.plotting import plot_image, plot_with_bboxes
 from ops.box_ops import calculate_offsets
+from ops import augmentation
 from containers.box_arrays import BoundBoxArray
 
 
@@ -60,21 +61,27 @@ class AnnotatedImage:
     def normalize_bboxes(self):
         """Normalize bboxes to be in range of (0, 1) for both axes"""
 
-        return AnnotatedImage(self.image,
-                              self.bboxes.rescale(self.size),
-                              self.filename,
-                              bboxes_normalized=True)
+        if not self._bboxes_normalized:
+            return AnnotatedImage(self.image,
+                                  self.bboxes.rescale(self.size),
+                                  self.filename,
+                                  bboxes_normalized=True)
+        else:
+            return self
 
     def recover_bboxes(self):
         """Recover bboxes to represent size in pixels"""
 
-        height, width = self.size
-        scale = (1 / height, 1 / width)
+        if self._bboxes_normalized:
+            height, width = self.size
+            scale = (1 / height, 1 / width)
 
-        return AnnotatedImage(self.image,
-                              self.bboxes.rescale(scale),
-                              self.filename,
-                              bboxes_normalized=False)
+            return AnnotatedImage(self.image,
+                                  self.bboxes.rescale(scale),
+                                  self.filename,
+                                  bboxes_normalized=False)
+        else:
+            return self
 
     def resize(self, size):
         """Resize image and bboxes according to `size`"""
@@ -112,6 +119,14 @@ class AnnotatedImage:
         offsets[default_matched] = compressed_offsets
 
         return labels, offsets
+
+    def random_hflip(self, probability=0.5):
+        """Flips image horizontally with probability `probability`"""
+
+        if np.random.uniform() < probability:
+            return augmentation.hflip(self)
+        else:
+            return self
 
     def plot(self, save_path, filename=None):
         """Plot and save image"""
