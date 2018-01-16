@@ -71,7 +71,8 @@ class Config:
         return (image
                 .normalize(255)
                 .normalize_bboxes()
-                .random_hflip())
+                .random_hflip(probability=0.5)
+                .random_crop(probability=0.5))
 
     @staticmethod
     def test_transform(image):
