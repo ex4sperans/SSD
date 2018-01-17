@@ -100,14 +100,19 @@ class AnnotatedImage:
         iou = default_boxes.iou(self.bboxes)
         # ensure that each box is matched with
         # single ground-truth box with top IOU
-        top_default_match = iou.max(axis=1, keepdims=True)
-        iou *= (iou == top_default_match)
+        top_default_match = iou.argmax(axis=1)
+        n_default_boxes = len(default_boxes)
+        mask = np.zeros_like(iou)
+        mask[range(n_default_boxes), top_default_match] = 1
+        # keep only top iou
+        iou *= mask
         matched = iou > threshold
 
         # labels
         classmask = np.array([class_mapping[classname]
                               for classname in self.bboxes.classnames],
                              dtype=np.int32)
+
         labels = (matched * classmask).sum(axis=1, dtype=np.int32)
 
         # offsets
