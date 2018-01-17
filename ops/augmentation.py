@@ -63,7 +63,8 @@ def crop(image, selection):
         vertical_clip_value=(y_min, y_max),
         horizontal_clip_value=(x_min, x_max)
     )
-    shifted_bboxes = cropped_bboxes.boundboxes - [x_min, y_min, x_min, y_min]
+    shift = [x_min, y_min, x_min, y_min]
+    shifted_bboxes = cropped_bboxes.boundboxes.as_matrix() - shift
     shifted_bboxes = BoundBoxArray.from_boundboxes(
         shifted_bboxes,
         classnames=cropped_bboxes.classnames

@@ -338,12 +338,14 @@ class SSD:
 
         with tf.name_scope("summaries"):
 
+            # scalars
             tf.summary.scalar("classification_loss", self.classification_loss)
             tf.summary.scalar("localization_loss", self.localization_loss)
             tf.summary.scalar("l2_loss", self.l2_loss)
             tf.summary.scalar("min_positives", self.min_positives)
             tf.summary.scalar("min_negatives", self.min_negatives)
 
+            # images
             for layer in ("vgg_16.conv3_2", "vgg_16.conv4_1",
                           "vgg_16.conv4_3", "vgg_16.conv5_3"):
 
@@ -351,6 +353,18 @@ class SSD:
                     layer,
                     self._nested_getattr(layer)[:, :, :, :3],
                     max_outputs=1
+                )
+            
+            # histograms
+            for layer in ("batch_norm9_1", "batch_norm10_1", "batch_norm11_2"):
+
+                tf.summary.histogram(
+                    layer,
+                    self.graph.get_tensor_by_name(
+                        "SSD/feedforward_convo/{layer}/batchnorm/add_1:0"
+                        .format(layer=layer)
+                    )
+                    
                 )
 
             self.summary = tf.summary.merge_all()
